@@ -1,0 +1,2735 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>IFC Mapping Editor</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background: #f3f4f6;
+    color: #202124;
+}
+
+button,
+input,
+select {
+    font-family: inherit;
+}
+
+button {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #30343b;
+    border-radius: 6px;
+
+    height: 34px;
+    padding: 0 12px;
+
+    cursor: pointer;
+
+    transition:
+        background .15s,
+        border-color .15s;
+}
+
+button:hover {
+    background: #f3f4f6;
+    border-color: #b8bec7;
+}
+
+button.primary {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
+}
+
+button.primary:hover {
+    background: #1d4ed8;
+}
+
+input,
+select {
+    height: 34px;
+
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+
+    background: #fff;
+
+    padding: 0 9px;
+
+    outline: none;
+
+    font-size: 13px;
+}
+
+input:focus,
+select:focus {
+    border-color: #2563eb;
+    box-shadow:
+        0 0 0 2px rgba(37, 99, 235, .08);
+}
+
+
+/* =========================================================
+   APP
+========================================================= */
+
+.app {
+    width: 100%;
+    height: 100vh;
+
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* =========================================================
+   TOOLBAR
+========================================================= */
+
+.toolbar {
+    min-height: 58px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    padding: 10px 14px;
+
+    background: #fff;
+
+    border-bottom:
+        1px solid #dfe3e8;
+
+    flex-wrap: wrap;
+}
+
+.toolbar-spacer {
+    flex: 1;
+}
+
+.search {
+    width: 190px;
+}
+
+.counter {
+    color: #7a8088;
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   CONTENT
+========================================================= */
+
+.content {
+    flex: 1;
+
+    overflow-y: auto;
+
+    padding: 16px;
+}
+
+.pset-container {
+    max-width: 1500px;
+
+    margin: 0 auto;
+}
+
+
+/* =========================================================
+   EMPTY
+========================================================= */
+
+.empty-state {
+    padding: 60px 20px;
+
+    text-align: center;
+
+    background: #fff;
+
+    border:
+        1px dashed #cfd4da;
+
+    border-radius: 8px;
+
+    color: #7b8189;
+
+    font-size: 13px;
+}
+
+
+/* =========================================================
+   PSET
+========================================================= */
+
+.pset {
+    background: #fff;
+
+    border:
+        1px solid #d2d6dc;
+
+    border-radius: 8px;
+
+    margin-bottom: 12px;
+
+    overflow: hidden;
+
+    transition:
+        box-shadow .15s,
+        opacity .15s;
+}
+
+.pset.dragging {
+    opacity: .45;
+
+    box-shadow:
+        0 8px 24px rgba(0,0,0,.12);
+}
+
+.pset.drag-over {
+    border-color: #2563eb;
+
+    box-shadow:
+        0 0 0 2px rgba(37,99,235,.12);
+}
+
+
+/* =========================================================
+   PSET HEADER
+========================================================= */
+
+.pset-header {
+    min-height: 52px;
+
+    display: flex;
+    align-items: center;
+
+    gap: 7px;
+
+    padding: 8px;
+
+    background: #f8f9fa;
+
+    border-bottom:
+        1px solid #e3e6ea;
+}
+
+.pset-name {
+    flex: 1;
+    min-width: 180px;
+}
+
+.ifc-class {
+    flex: 1;
+    min-width: 180px;
+}
+
+.mode {
+    width: 58px;
+}
+
+
+/* =========================================================
+   PSET DRAG HANDLE
+========================================================= */
+
+.pset-drag-handle {
+    width: 28px;
+    height: 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    color: #9aa0a6;
+
+    cursor: grab;
+
+    user-select: none;
+
+    font-size: 17px;
+}
+
+.pset-drag-handle:active {
+    cursor: grabbing;
+}
+
+
+/* =========================================================
+   ICON BUTTON
+========================================================= */
+
+.icon-btn {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+
+    padding: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid transparent;
+
+    background: transparent;
+
+    color: #6b7280;
+
+    border-radius: 5px;
+}
+
+.icon-btn:hover {
+    background: #e9edf2;
+
+    color: #1f2937;
+}
+
+.icon-btn.danger:hover {
+    background: #feecec;
+
+    color: #c62828;
+}
+
+.icon {
+    width: 16px;
+    height: 16px;
+
+    display: block;
+}
+
+
+/* =========================================================
+   PSET BODY
+========================================================= */
+
+.pset-body {
+    padding: 10px;
+}
+
+.pset-actions {
+    padding-top: 9px;
+}
+
+
+/* =========================================================
+   PARAMETER HEADER
+========================================================= */
+
+.parameter-header {
+
+    display: grid;
+
+    grid-template-columns:
+        28px
+        minmax(180px, 1fr)
+        120px
+        minmax(180px, 1fr)
+        34px
+        34px;
+
+    gap: 7px;
+
+    padding:
+        0 3px 5px 3px;
+
+    color: #858b93;
+
+    font-size: 11px;
+}
+
+.parameter-header .header-action {
+    text-align: center;
+}
+
+
+/* =========================================================
+   PARAMETERS
+========================================================= */
+
+.parameters {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 5px;
+}
+
+.parameter {
+
+    display: grid;
+
+    grid-template-columns:
+        28px
+        minmax(180px, 1fr)
+        120px
+        minmax(180px, 1fr)
+        34px
+        34px;
+
+    gap: 7px;
+
+    align-items: center;
+
+    padding: 3px;
+
+    border-radius: 6px;
+
+    transition:
+        background .12s,
+        box-shadow .12s,
+        opacity .12s;
+}
+
+.parameter:hover {
+    background: #f8f9fa;
+}
+
+.parameter.dragging {
+    opacity: .35;
+}
+
+.parameter.drag-over {
+    background: #edf4ff;
+
+    box-shadow:
+        inset 0 2px 0 #2563eb;
+}
+
+
+/* =========================================================
+   PARAMETER DRAG HANDLE
+========================================================= */
+
+.parameter-drag-handle {
+
+    height: 30px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    color: #9ca3af;
+
+    cursor: grab;
+
+    user-select: none;
+
+    font-size: 17px;
+}
+
+.parameter-drag-handle:hover {
+    color: #4b5563;
+}
+
+.parameter-drag-handle:active {
+    cursor: grabbing;
+}
+
+
+/* =========================================================
+   NO PARAMETERS
+========================================================= */
+
+.no-params {
+    color: #9aa0a6;
+
+    font-size: 12px;
+
+    padding: 8px 3px;
+}
+
+
+/* =========================================================
+   FILE
+========================================================= */
+
+#importFile {
+    display: none;
+}
+
+
+/* =========================================================
+   NOTIFICATION
+========================================================= */
+
+.notification {
+
+    position: fixed;
+
+    right: 20px;
+    bottom: 20px;
+
+    background: #222;
+
+    color: #fff;
+
+    padding:
+        11px 15px;
+
+    border-radius: 7px;
+
+    font-size: 13px;
+
+    opacity: 0;
+
+    transform:
+        translateY(10px);
+
+    pointer-events: none;
+
+    transition:
+        opacity .2s,
+        transform .2s;
+
+    z-index: 1000;
+}
+
+.notification.show {
+
+    opacity: 1;
+
+    transform:
+        translateY(0);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 900px) {
+
+    .parameter-header {
+        display: none;
+    }
+
+    .parameter {
+
+        grid-template-columns:
+            28px
+            1fr
+            110px
+            1fr
+            34px
+            34px;
+    }
+
+    .pset-header {
+        flex-wrap: wrap;
+    }
+
+    .pset-name,
+    .ifc-class {
+        min-width: 140px;
+    }
+}
+
+</style>
+</head>
+
+
+<body>
+
+
+<div class="app">
+
+
+    <!-- =====================================================
+         TOOLBAR
+    ====================================================== -->
+
+    <div class="toolbar">
+
+        <button id="importBtn">
+            Импорт маппинга
+        </button>
+
+        <button id="saveBtn">
+            Сохранить маппинг
+        </button>
+
+        <button
+            id="addPsetBtn"
+            class="primary"
+        >
+            Создать Pset
+        </button>
+
+        <input
+            id="searchPset"
+            class="search"
+            placeholder="Поиск Pset"
+        >
+
+        <input
+            id="searchIfc"
+            class="search"
+            placeholder="Поиск IfcClass"
+        >
+
+        <div class="toolbar-spacer"></div>
+
+        <span
+            id="counter"
+            class="counter"
+        ></span>
+
+    </div>
+
+
+    <!-- =====================================================
+         CONTENT
+    ====================================================== -->
+
+    <main class="content">
+
+        <div
+            id="psetContainer"
+            class="pset-container"
+        ></div>
+
+    </main>
+
+</div>
+
+
+<input
+    id="importFile"
+    type="file"
+    accept=".txt"
+/>
+
+
+<div
+    id="notification"
+    class="notification"
+></div>
+
+
+
+<script>
+
+"use strict";
+
+
+/* =========================================================
+   SVG ICONS
+========================================================= */
+
+const ICONS = {
+
+    copy: `
+        <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <rect
+                x="8"
+                y="8"
+                width="11"
+                height="11"
+                rx="2"
+            />
+            <path
+                d="M16 8V6
+                   a2 2 0 0 0-2-2H6
+                   a2 2 0 0 0-2 2v8
+                   a2 2 0 0 0 2 2h2"
+            />
+        </svg>
+    `,
+
+    trash: `
+        <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M4 7h16"/>
+            <path d="M10 11v6"/>
+            <path d="M14 11v6"/>
+            <path d="M6 7l1 13h10l1-13"/>
+            <path d="M9 7V4h6v3"/>
+        </svg>
+    `,
+
+    chevronDown: `
+        <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="6 9 12 15 18 9"/>
+        </svg>
+    `,
+
+    chevronRight: `
+        <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
+    `
+
+};
+
+
+/* =========================================================
+   STATE
+========================================================= */
+
+let psets = [];
+
+let draggedPsetId = null;
+
+let draggedParameter = null;
+
+
+/* =========================================================
+   DOM
+========================================================= */
+
+const psetContainer =
+    document.getElementById(
+        "psetContainer"
+    );
+
+const addPsetBtn =
+    document.getElementById(
+        "addPsetBtn"
+    );
+
+const importBtn =
+    document.getElementById(
+        "importBtn"
+    );
+
+const saveBtn =
+    document.getElementById(
+        "saveBtn"
+    );
+
+const importFile =
+    document.getElementById(
+        "importFile"
+    );
+
+const searchPset =
+    document.getElementById(
+        "searchPset"
+    );
+
+const searchIfc =
+    document.getElementById(
+        "searchIfc"
+    );
+
+const counter =
+    document.getElementById(
+        "counter"
+    );
+
+
+/* =========================================================
+   UTILS
+========================================================= */
+
+function generateId(prefix) {
+
+    return (
+        prefix +
+        "_" +
+        Date.now().toString(36) +
+        "_" +
+        Math.random()
+            .toString(36)
+            .substring(2, 8)
+    );
+}
+
+
+function escapeHtml(value) {
+
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+
+function notify(message) {
+
+    const element =
+        document.getElementById(
+            "notification"
+        );
+
+    element.textContent =
+        message;
+
+    element.classList.add(
+        "show"
+    );
+
+    setTimeout(
+        () => {
+            element.classList.remove(
+                "show"
+            );
+        },
+        2000
+    );
+}
+
+
+/* =========================================================
+   CREATE PSET
+========================================================= */
+
+function createPset(data = {}) {
+
+    const pset = {
+
+        id:
+            generateId("pset"),
+
+        name:
+            data.name || "",
+
+        mode:
+            data.mode || "I",
+
+        ifcClass:
+            data.ifcClass || "",
+
+        expanded:
+            data.expanded !== undefined
+                ? data.expanded
+                : true,
+
+        parameters: []
+
+    };
+
+
+    if (
+        Array.isArray(
+            data.parameters
+        )
+    ) {
+
+        data.parameters.forEach(
+            parameter => {
+
+                pset.parameters.push({
+
+                    id:
+                        generateId("param"),
+
+                    ifcProperty:
+                        parameter.ifcProperty || "",
+
+                    type:
+                        parameter.type || "Text",
+
+                    revitParameter:
+                        parameter.revitParameter || ""
+
+                });
+
+            }
+        );
+
+    }
+
+
+    psets.push(pset);
+
+    render();
+
+    return pset;
+}
+
+
+/* =========================================================
+   DELETE PSET
+========================================================= */
+
+function deletePset(id) {
+
+    const index =
+        psets.findIndex(
+            p => p.id === id
+        );
+
+    if (index === -1)
+        return;
+
+    psets.splice(
+        index,
+        1
+    );
+
+    render();
+
+    notify(
+        "Pset удалён"
+    );
+}
+
+
+/* =========================================================
+   COPY PSET
+========================================================= */
+
+function copyPset(id) {
+
+    const source =
+        psets.find(
+            p => p.id === id
+        );
+
+    if (!source)
+        return;
+
+
+    const copy = {
+
+        name:
+            source.name,
+
+        mode:
+            source.mode,
+
+        ifcClass:
+            source.ifcClass,
+
+        expanded:
+            true,
+
+        parameters:
+            source.parameters.map(
+                parameter => ({
+
+                    ifcProperty:
+                        parameter.ifcProperty,
+
+                    type:
+                        parameter.type,
+
+                    revitParameter:
+                        parameter.revitParameter
+
+                })
+            )
+
+    };
+
+
+    createPset(copy);
+
+    notify(
+        "Pset скопирован"
+    );
+}
+
+
+/* =========================================================
+   ADD PARAMETER
+========================================================= */
+
+function addParameter(
+    psetId
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    pset.parameters.push({
+
+        id:
+            generateId("param"),
+
+        ifcProperty: "",
+
+        type: "Text",
+
+        revitParameter: ""
+
+    });
+
+
+    render();
+}
+
+
+/* =========================================================
+   DELETE PARAMETER
+========================================================= */
+
+function deleteParameter(
+    psetId,
+    parameterId
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    const index =
+        pset.parameters.findIndex(
+            p =>
+                p.id === parameterId
+        );
+
+    if (index === -1)
+        return;
+
+
+    pset.parameters.splice(
+        index,
+        1
+    );
+
+    render();
+}
+
+
+/* =========================================================
+   COPY PARAMETER
+========================================================= */
+
+function copyParameter(
+    psetId,
+    parameterId
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    const index =
+        pset.parameters.findIndex(
+            p =>
+                p.id === parameterId
+        );
+
+    if (index === -1)
+        return;
+
+
+    const source =
+        pset.parameters[index];
+
+
+    pset.parameters.splice(
+
+        index + 1,
+
+        0,
+
+        {
+
+            id:
+                generateId("param"),
+
+            ifcProperty:
+                source.ifcProperty,
+
+            type:
+                source.type,
+
+            revitParameter:
+                source.revitParameter
+
+        }
+
+    );
+
+
+    render();
+
+    notify(
+        "Параметр скопирован"
+    );
+}
+
+
+/* =========================================================
+   UPDATE PSET
+========================================================= */
+
+function updatePset(
+    id,
+    field,
+    value
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === id
+        );
+
+    if (!pset)
+        return;
+
+    pset[field] =
+        value;
+
+    updateCounters();
+}
+
+
+/* =========================================================
+   UPDATE PARAMETER
+========================================================= */
+
+function updateParameter(
+    psetId,
+    parameterId,
+    field,
+    value
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    const parameter =
+        pset.parameters.find(
+            p =>
+                p.id === parameterId
+        );
+
+    if (!parameter)
+        return;
+
+
+    parameter[field] =
+        value;
+}
+
+
+/* =========================================================
+   TOGGLE PSET
+========================================================= */
+
+function togglePset(id) {
+
+    const pset =
+        psets.find(
+            p => p.id === id
+        );
+
+    if (!pset)
+        return;
+
+
+    pset.expanded =
+        !pset.expanded;
+
+
+    render();
+}
+
+
+/* =========================================================
+   FILTER
+========================================================= */
+
+function getFilteredPsets() {
+
+    const psetQuery =
+        searchPset.value
+            .trim()
+            .toLowerCase();
+
+    const ifcQuery =
+        searchIfc.value
+            .trim()
+            .toLowerCase();
+
+
+    return psets.filter(
+        pset => {
+
+            const matchesPset =
+                !psetQuery ||
+                pset.name
+                    .toLowerCase()
+                    .includes(
+                        psetQuery
+                    );
+
+
+            const matchesIfc =
+                !ifcQuery ||
+                pset.ifcClass
+                    .toLowerCase()
+                    .includes(
+                        ifcQuery
+                    );
+
+
+            return (
+                matchesPset &&
+                matchesIfc
+            );
+
+        }
+    );
+}
+
+
+/* =========================================================
+   PARAMETER DRAG START
+========================================================= */
+
+function parameterDragStart(
+    event,
+    psetId,
+    parameterId
+) {
+
+    draggedParameter = {
+
+        psetId:
+            psetId,
+
+        parameterId:
+            parameterId
+
+    };
+
+
+    event.currentTarget
+        .classList
+        .add("dragging");
+
+
+    event.dataTransfer.effectAllowed =
+        "move";
+
+
+    event.dataTransfer.setData(
+        "text/plain",
+        parameterId
+    );
+}
+
+
+/* =========================================================
+   PARAMETER DRAG END
+========================================================= */
+
+function parameterDragEnd(event) {
+
+    event.currentTarget
+        .classList
+        .remove("dragging");
+
+
+    document
+        .querySelectorAll(
+            ".parameter.drag-over"
+        )
+        .forEach(
+            element =>
+                element.classList.remove(
+                    "drag-over"
+                )
+        );
+
+
+    draggedParameter =
+        null;
+}
+
+
+/* =========================================================
+   PARAMETER DRAG OVER
+========================================================= */
+
+function parameterDragOver(event) {
+
+    event.preventDefault();
+
+    event.dataTransfer.dropEffect =
+        "move";
+
+    const row =
+        event.currentTarget;
+
+    if (
+        !draggedParameter
+    )
+        return;
+
+
+    row.classList.add(
+        "drag-over"
+    );
+}
+
+
+/* =========================================================
+   PARAMETER DRAG LEAVE
+========================================================= */
+
+function parameterDragLeave(event) {
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+}
+
+
+/* =========================================================
+   PARAMETER DROP
+========================================================= */
+
+function parameterDrop(
+    event,
+    targetPsetId,
+    targetParameterId
+) {
+
+    event.preventDefault();
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+
+
+    if (!draggedParameter)
+        return;
+
+
+    if (
+        draggedParameter.psetId !==
+        targetPsetId
+    )
+        return;
+
+
+    const pset =
+        psets.find(
+            p =>
+                p.id ===
+                targetPsetId
+        );
+
+
+    if (!pset)
+        return;
+
+
+    const fromIndex =
+        pset.parameters.findIndex(
+            p =>
+                p.id ===
+                draggedParameter.parameterId
+        );
+
+
+    const toIndex =
+        pset.parameters.findIndex(
+            p =>
+                p.id ===
+                targetParameterId
+        );
+
+
+    if (
+        fromIndex === -1 ||
+        toIndex === -1 ||
+        fromIndex === toIndex
+    )
+        return;
+
+
+    const moved =
+        pset.parameters.splice(
+            fromIndex,
+            1
+        )[0];
+
+
+    pset.parameters.splice(
+        toIndex,
+        0,
+        moved
+    );
+
+
+    draggedParameter =
+        null;
+
+
+    render();
+}
+
+
+/* =========================================================
+   PSET DRAG
+========================================================= */
+
+function psetDragStart(
+    event,
+    psetId
+) {
+
+    draggedPsetId =
+        psetId;
+
+
+    event.currentTarget
+        .classList
+        .add("dragging");
+
+
+    event.dataTransfer.effectAllowed =
+        "move";
+
+    event.dataTransfer.setData(
+        "text/plain",
+        psetId
+    );
+}
+
+
+function psetDragEnd(event) {
+
+    event.currentTarget
+        .classList
+        .remove(
+            "dragging"
+        );
+
+
+    document
+        .querySelectorAll(
+            ".pset.drag-over"
+        )
+        .forEach(
+            element =>
+                element.classList.remove(
+                    "drag-over"
+                )
+        );
+
+
+    draggedPsetId =
+        null;
+}
+
+
+function psetDragOver(event) {
+
+    event.preventDefault();
+
+    if (!draggedPsetId)
+        return;
+
+
+    event.dataTransfer.dropEffect =
+        "move";
+
+
+    event.currentTarget
+        .classList
+        .add(
+            "drag-over"
+        );
+}
+
+
+function psetDragLeave(event) {
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+}
+
+
+function psetDrop(
+    event,
+    targetPsetId
+) {
+
+    event.preventDefault();
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+
+
+    if (
+        !draggedPsetId ||
+        draggedPsetId ===
+        targetPsetId
+    )
+        return;
+
+
+    const fromIndex =
+        psets.findIndex(
+            p =>
+                p.id ===
+                draggedPsetId
+        );
+
+
+    const toIndex =
+        psets.findIndex(
+            p =>
+                p.id ===
+                targetPsetId
+        );
+
+
+    if (
+        fromIndex === -1 ||
+        toIndex === -1
+    )
+        return;
+
+
+    const moved =
+        psets.splice(
+            fromIndex,
+            1
+        )[0];
+
+
+    psets.splice(
+        toIndex,
+        0,
+        moved
+    );
+
+
+    draggedPsetId =
+        null;
+
+
+    render();
+}
+
+
+/* =========================================================
+   RENDER PARAMETER
+========================================================= */
+
+function renderParameter(
+    pset,
+    parameter
+) {
+
+    const row =
+        document.createElement(
+            "div"
+        );
+
+
+    row.className =
+        "parameter";
+
+
+    row.draggable =
+        true;
+
+
+    row.innerHTML = `
+
+        <div
+            class="parameter-drag-handle"
+            title="Перетащить"
+        >
+            ⠿
+        </div>
+
+        <input
+            type="text"
+            placeholder="IFC Property"
+            value="${escapeHtml(
+                parameter.ifcProperty
+            )}"
+            data-field="ifcProperty"
+        >
+
+        <select
+            data-field="type"
+        >
+
+            <option value="Text">
+                Text
+            </option>
+
+            <option value="Real">
+                Real
+            </option>
+
+            <option value="Integer">
+                Integer
+            </option>
+
+            <option value="Boolean">
+                Boolean
+            </option>
+
+            <option value="Lenght">
+                Lenght
+            </option>
+
+            <option value="Area">
+                Area
+            </option>
+
+        </select>
+
+        <input
+            type="text"
+            placeholder="Revit Parameter"
+            value="${escapeHtml(
+                parameter.revitParameter
+            )}"
+            data-field="revitParameter"
+        >
+
+        <button
+            class="icon-btn"
+            title="Копировать"
+            data-action="copy"
+        >
+            ${ICONS.copy}
+        </button>
+
+        <button
+            class="icon-btn danger"
+            title="Удалить"
+            data-action="delete"
+        >
+            ${ICONS.trash}
+        </button>
+
+    `;
+
+
+    const select =
+        row.querySelector(
+            "select"
+        );
+
+
+    select.value =
+        parameter.type;
+
+
+    /* INPUTS */
+
+    row.querySelectorAll(
+        "input, select"
+    ).forEach(
+        element => {
+
+            element.addEventListener(
+                "input",
+                () => {
+
+                    updateParameter(
+                        pset.id,
+                        parameter.id,
+                        element.dataset.field,
+                        element.value
+                    );
+
+                    updateCounters();
+
+                }
+            );
+
+
+            element.addEventListener(
+                "change",
+                () => {
+
+                    updateParameter(
+                        pset.id,
+                        parameter.id,
+                        element.dataset.field,
+                        element.value
+                    );
+
+                    updateCounters();
+
+                }
+            );
+
+        }
+    );
+
+
+    /* COPY */
+
+    row.querySelector(
+        '[data-action="copy"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            copyParameter(
+                pset.id,
+                parameter.id
+            );
+
+        }
+    );
+
+
+    /* DELETE */
+
+    row.querySelector(
+        '[data-action="delete"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            deleteParameter(
+                pset.id,
+                parameter.id
+            );
+
+        }
+    );
+
+
+    /* DRAG */
+
+    row.addEventListener(
+        "dragstart",
+        event =>
+            parameterDragStart(
+                event,
+                pset.id,
+                parameter.id
+            )
+    );
+
+
+    row.addEventListener(
+        "dragend",
+        parameterDragEnd
+    );
+
+
+    row.addEventListener(
+        "dragover",
+        parameterDragOver
+    );
+
+
+    row.addEventListener(
+        "dragleave",
+        parameterDragLeave
+    );
+
+
+    row.addEventListener(
+        "drop",
+        event =>
+            parameterDrop(
+                event,
+                pset.id,
+                parameter.id
+            )
+    );
+
+
+    return row;
+}
+
+
+/* =========================================================
+   RENDER PSET
+========================================================= */
+
+function renderPset(pset) {
+
+    const card =
+        document.createElement(
+            "div"
+        );
+
+
+    card.className =
+        "pset";
+
+
+    card.dataset.psetId =
+        pset.id;
+
+
+    /* =====================================================
+       HEADER
+    ====================================================== */
+
+    const header =
+        document.createElement(
+            "div"
+        );
+
+
+    header.className =
+        "pset-header";
+
+
+    header.innerHTML = `
+
+        <div
+            class="pset-drag-handle"
+            draggable="true"
+            title="Перетащить Pset"
+        >
+            ⠿
+        </div>
+
+        <button
+            class="icon-btn"
+            data-action="expand"
+            title="Развернуть / свернуть"
+        >
+            ${
+                pset.expanded
+                    ? ICONS.chevronDown
+                    : ICONS.chevronRight
+            }
+        </button>
+
+        <input
+            class="pset-name"
+            type="text"
+            placeholder="PropertySet"
+            value="${escapeHtml(
+                pset.name
+            )}"
+        >
+
+        <select
+            class="mode"
+        >
+
+            <option value="I">
+                I
+            </option>
+
+            <option value="T">
+                T
+            </option>
+
+        </select>
+
+        <input
+            class="ifc-class"
+            type="text"
+            placeholder="IfcClass"
+            value="${escapeHtml(
+                pset.ifcClass
+            )}"
+        >
+
+        <button
+            class="icon-btn"
+            title="Копировать Pset"
+            data-action="copy-pset"
+        >
+            ${ICONS.copy}
+        </button>
+
+        <button
+            class="icon-btn danger"
+            title="Удалить Pset"
+            data-action="delete-pset"
+        >
+            ${ICONS.trash}
+        </button>
+
+    `;
+
+
+    header.querySelector(
+        ".mode"
+    ).value =
+        pset.mode;
+
+
+    /* EXPAND */
+
+    header.querySelector(
+        '[data-action="expand"]'
+    ).addEventListener(
+        "click",
+        () =>
+            togglePset(
+                pset.id
+            )
+    );
+
+
+    /* NAME */
+
+    header.querySelector(
+        ".pset-name"
+    ).addEventListener(
+        "input",
+        event =>
+            updatePset(
+                pset.id,
+                "name",
+                event.target.value
+            )
+    );
+
+
+    /* MODE */
+
+    header.querySelector(
+        ".mode"
+    ).addEventListener(
+        "change",
+        event =>
+            updatePset(
+                pset.id,
+                "mode",
+                event.target.value
+            )
+    );
+
+
+    /* IFC CLASS */
+
+    header.querySelector(
+        ".ifc-class"
+    ).addEventListener(
+        "input",
+        event =>
+            updatePset(
+                pset.id,
+                "ifcClass",
+                event.target.value
+            )
+    );
+
+
+    /* COPY */
+
+    header.querySelector(
+        '[data-action="copy-pset"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            copyPset(
+                pset.id
+            );
+
+        }
+    );
+
+
+    /* DELETE */
+
+    header.querySelector(
+        '[data-action="delete-pset"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            deletePset(
+                pset.id
+            );
+
+        }
+    );
+
+
+    /* =====================================================
+       PSET DRAG
+    ====================================================== */
+
+    const dragHandle =
+        header.querySelector(
+            ".pset-drag-handle"
+        );
+
+
+    dragHandle.addEventListener(
+        "dragstart",
+        event =>
+            psetDragStart(
+                event,
+                pset.id
+            )
+    );
+
+
+    dragHandle.addEventListener(
+        "dragend",
+        psetDragEnd
+    );
+
+
+    card.addEventListener(
+        "dragover",
+        psetDragOver
+    );
+
+
+    card.addEventListener(
+        "dragleave",
+        psetDragLeave
+    );
+
+
+    card.addEventListener(
+        "drop",
+        event =>
+            psetDrop(
+                event,
+                pset.id
+            )
+    );
+
+
+    card.appendChild(
+        header
+    );
+
+
+    /* =====================================================
+       BODY
+    ====================================================== */
+
+    if (pset.expanded) {
+
+        const body =
+            document.createElement(
+                "div"
+            );
+
+
+        body.className =
+            "pset-body";
+
+
+        /* PARAMETER HEADER */
+
+        const parameterHeader =
+            document.createElement(
+                "div"
+            );
+
+
+        parameterHeader.className =
+            "parameter-header";
+
+
+        parameterHeader.innerHTML = `
+
+            <div></div>
+
+            <div>
+                IFC Property
+            </div>
+
+            <div>
+                Тип
+            </div>
+
+            <div>
+                Revit Parameter
+            </div>
+
+            <div class="header-action">
+                ⧉
+            </div>
+
+            <div class="header-action">
+                🗑
+            </div>
+
+        `;
+
+
+        if (
+            pset.parameters.length > 0
+        ) {
+
+            body.appendChild(
+                parameterHeader
+            );
+
+
+            const parameters =
+                document.createElement(
+                    "div"
+                );
+
+
+            parameters.className =
+                "parameters";
+
+
+            pset.parameters.forEach(
+                parameter => {
+
+                    parameters.appendChild(
+                        renderParameter(
+                            pset,
+                            parameter
+                        )
+                    );
+
+                }
+            );
+
+
+            body.appendChild(
+                parameters
+            );
+
+        } else {
+
+            const noParams =
+                document.createElement(
+                    "div"
+                );
+
+
+            noParams.className =
+                "no-params";
+
+
+            noParams.textContent =
+                "Параметры не добавлены.";
+
+
+            body.appendChild(
+                noParams
+            );
+
+        }
+
+
+        /* ADD */
+
+        const actions =
+            document.createElement(
+                "div"
+            );
+
+
+        actions.className =
+            "pset-actions";
+
+
+        const addButton =
+            document.createElement(
+                "button"
+            );
+
+
+        addButton.textContent =
+            "+ Параметр";
+
+
+        addButton.addEventListener(
+            "click",
+            () =>
+                addParameter(
+                    pset.id
+                )
+        );
+
+
+        actions.appendChild(
+            addButton
+        );
+
+
+        body.appendChild(
+            actions
+        );
+
+
+        card.appendChild(
+            body
+        );
+
+    }
+
+
+    return card;
+}
+
+
+/* =========================================================
+   RENDER
+========================================================= */
+
+function render() {
+
+    const filtered =
+        getFilteredPsets();
+
+
+    psetContainer.innerHTML =
+        "";
+
+
+    if (
+        filtered.length === 0
+    ) {
+
+        const empty =
+            document.createElement(
+                "div"
+            );
+
+
+        empty.className =
+            "empty-state";
+
+
+        if (
+            psets.length === 0
+        ) {
+
+            empty.innerHTML =
+                `
+                Нет Pset.<br><br>
+                Нажмите «Создать Pset»
+                или импортируйте существующий маппинг.
+                `;
+
+        } else {
+
+            empty.textContent =
+                "По заданному фильтру Pset не найдены.";
+
+        }
+
+
+        psetContainer.appendChild(
+            empty
+        );
+
+
+    } else {
+
+        filtered.forEach(
+            pset => {
+
+                psetContainer.appendChild(
+                    renderPset(
+                        pset
+                    )
+                );
+
+            }
+        );
+
+    }
+
+
+    updateCounters();
+}
+
+
+/* =========================================================
+   COUNTERS
+========================================================= */
+
+function updateCounters() {
+
+    const visible =
+        getFilteredPsets().length;
+
+
+    const parameterCount =
+        psets.reduce(
+            (
+                total,
+                pset
+            ) =>
+                total +
+                pset.parameters.length,
+            0
+        );
+
+
+    counter.textContent =
+        `Pset: ${visible}/${psets.length} · Параметров: ${parameterCount}`;
+}
+
+
+/* =========================================================
+   SEARCH
+========================================================= */
+
+searchPset.addEventListener(
+    "input",
+    render
+);
+
+searchIfc.addEventListener(
+    "input",
+    render
+);
+
+
+/* =========================================================
+   ADD PSET
+========================================================= */
+
+addPsetBtn.addEventListener(
+    "click",
+    () => {
+
+        createPset();
+
+        notify(
+            "Создан новый Pset"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   IMPORT BUTTON
+========================================================= */
+
+importBtn.addEventListener(
+    "click",
+    () => {
+
+        importFile.value =
+            "";
+
+        importFile.click();
+
+    }
+);
+
+
+/* =========================================================
+   IMPORT FILE
+========================================================= */
+
+importFile.addEventListener(
+    "change",
+    event => {
+
+        const file =
+            event.target.files[0];
+
+
+        if (!file)
+            return;
+
+
+        const reader =
+            new FileReader();
+
+
+        reader.onload =
+            function(event) {
+
+                try {
+
+                    importMappingText(
+                        event.target.result
+                    );
+
+
+                    notify(
+                        "Маппинг успешно импортирован"
+                    );
+
+
+                } catch(error) {
+
+                    console.error(
+                        error
+                    );
+
+
+                    alert(
+                        "Ошибка импорта:\n\n" +
+                        error.message
+                    );
+
+                }
+
+            };
+
+
+        reader.readAsText(
+            file,
+            "UTF-8"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   IMPORT PARSER
+========================================================= */
+
+function importMappingText(
+    text
+) {
+
+    psets = [];
+
+
+    let currentPset =
+        null;
+
+
+    const lines =
+        text.split(
+            /\r?\n/
+        );
+
+
+    lines.forEach(
+        line => {
+
+            if (!line)
+                return;
+
+
+            const parts =
+                line.split(
+                    "\t"
+                );
+
+
+            if (
+                parts[0] ===
+                "PropertySet:"
+            ) {
+
+                currentPset =
+                    createPset({
+
+                        name:
+                            parts[1] || "",
+
+                        mode:
+                            parts[2] || "I",
+
+                        ifcClass:
+                            parts[3] || "",
+
+                        expanded:
+                            true
+
+                    });
+
+
+            } else {
+
+                if (!currentPset)
+                    return;
+
+
+                currentPset.parameters.push({
+
+                    id:
+                        generateId(
+                            "param"
+                        ),
+
+                    ifcProperty:
+                        parts[1] || "",
+
+                    type:
+                        parts[2] || "Text",
+
+                    revitParameter:
+                        parts[3] || ""
+
+                });
+
+            }
+
+        }
+    );
+
+
+    render();
+}
+
+
+/* =========================================================
+   SAVE
+========================================================= */
+
+saveBtn.addEventListener(
+    "click",
+    saveMapping
+);
+
+
+function saveMapping() {
+
+    const duplicates =
+        new Set();
+
+
+    for (
+        const pset of psets
+    ) {
+
+        const name =
+            pset.name.trim();
+
+
+        const ifcClass =
+            pset.ifcClass.trim();
+
+
+        if (!name) {
+
+            alert(
+                "Ошибка:\n\n" +
+                "Имя PropertySet пустое."
+            );
+
+            return;
+        }
+
+
+        const key =
+            name +
+            "||" +
+            ifcClass;
+
+
+        if (
+            duplicates.has(
+                key
+            )
+        ) {
+
+            alert(
+                "Ошибка:\n\n" +
+                "Дубликат PropertySet:\n" +
+                name +
+                " | " +
+                ifcClass
+            );
+
+            return;
+        }
+
+
+        duplicates.add(
+            key
+        );
+
+    }
+
+
+    const lines = [];
+
+
+    psets.forEach(
+        pset => {
+
+            lines.push(
+                [
+                    "PropertySet:",
+                    pset.name,
+                    pset.mode,
+                    pset.ifcClass,
+                    "",
+                    "",
+                    "",
+                    ""
+                ].join("\t")
+            );
+
+
+            pset.parameters.forEach(
+                parameter => {
+
+                    lines.push(
+                        [
+                            "",
+                            parameter.ifcProperty,
+                            parameter.type,
+                            parameter.revitParameter,
+                            "",
+                            "",
+                            "",
+                            ""
+                        ].join("\t")
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+    const text =
+        lines.join(
+            "\n"
+        );
+
+
+    const blob =
+        new Blob(
+            [text],
+            {
+                type:
+                    "text/plain;charset=utf-8"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+
+    const link =
+        document.createElement(
+            "a"
+        );
+
+
+    link.href =
+        url;
+
+
+    link.download =
+        "mapping.txt";
+
+
+    document.body.appendChild(
+        link
+    );
+
+
+    link.click();
+
+
+    link.remove();
+
+
+    URL.revokeObjectURL(
+        url
+    );
+
+
+    notify(
+        "Маппинг сохранён"
+    );
+}
+
+
+/* =========================================================
+   INITIAL
+========================================================= */
+
+render();
+
+</script>
+
+</body>
+</html>

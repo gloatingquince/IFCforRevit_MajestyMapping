@@ -1,0 +1,3537 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Revit → IFC Mapping</title>
+
+<style>
+:root{
+  --bg:#f4f6f8;
+  --card:#fff;
+  --line:#d9dee5;
+  --text:#20252b;
+  --muted:#6d7680;
+  --accent:#3b82f6;
+  --danger:#dc3545;
+  --ok:#198754;
+  --warn:#d88900;
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font:14px Segoe UI,Arial,sans-serif
+}
+
+button,input,select{font:inherit}
+button{cursor:pointer}
+
+.app{
+  height:100vh;
+  display:flex;
+  flex-direction:column
+}
+
+.topbar{
+  background:#fff;
+  border-bottom:1px solid var(--line);
+  padding:12px 16px;
+  display:flex;
+  gap:8px;
+  align-items:center
+}
+
+.brand{
+  font-weight:700;
+  font-size:16px;
+  margin-right:14px
+}
+
+.tabs{
+  display:flex;
+  gap:4px;
+  padding:8px 16px 0;
+  background:#fff;
+  border-bottom:1px solid var(--line)
+}
+
+.tab{
+  padding:10px 16px;
+  border:0;
+  background:transparent;
+  border-bottom:3px solid transparent;
+  color:#66707a
+}
+
+.tab.active{
+  color:var(--accent);
+  border-bottom-color:var(--accent);
+  font-weight:600
+}
+
+.tab-content{
+  display:none;
+  flex:1;
+  min-height:0
+}
+
+.tab-content.active{
+  display:flex
+}
+
+.toolbar{
+  padding:12px 16px;
+  background:#fff;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap
+}
+
+.btn{
+  border:1px solid #cbd2d9;
+  background:#fff;
+  border-radius:6px;
+  padding:7px 11px
+}
+
+.btn:hover{
+  background:#f1f4f7
+}
+
+.btn.primary{
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent)
+}
+
+.btn.danger{
+  color:var(--danger)
+}
+
+.btn.icon{
+  width:30px;
+  height:30px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center
+}
+
+.search{
+  height:34px;
+  border:1px solid #cbd2d9;
+  border-radius:6px;
+  padding:0 10px;
+  min-width:220px
+}
+
+.check{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin-left:8px;
+  color:#424a52
+}
+
+.workspace{
+  display:flex;
+  flex:1;
+  min-height:0;
+  overflow:hidden
+}
+
+.panel{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  background:var(--bg)
+}
+
+.panel+.panel{
+  border-left:1px solid var(--line)
+}
+
+.panel-title{
+  background:#fff;
+  padding:10px 14px;
+  border-bottom:1px solid var(--line);
+  font-weight:700;
+  display:flex;
+  justify-content:space-between
+}
+
+.panel-body{
+  overflow:auto;
+  padding:12px
+}
+
+.group{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:8px;
+  margin-bottom:10px;
+  overflow:hidden
+}
+
+.group-header{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  background:#fafbfc;
+  border-bottom:1px solid var(--line)
+}
+
+.group-toggle{
+  border:0;
+  background:none;
+  width:24px;
+  font-size:14px
+}
+
+.group-name{
+  font-weight:700;
+  flex:1
+}
+
+.group-count{
+  font-size:12px;
+  color:var(--muted)
+}
+
+.rows{
+  padding:4px 8px
+}
+
+.mapping-row,
+.template-param{
+  display:grid;
+  gap:8px;
+  align-items:center;
+  padding:6px 0;
+  border-bottom:1px solid #edf0f2
+}
+
+.mapping-row:last-child,
+.template-param:last-child{
+  border-bottom:0
+}
+
+.mapping-row{
+  grid-template-columns:minmax(150px,1.25fr) 110px minmax(170px,1.4fr) 120px 34px
+}
+
+.template-param{
+  grid-template-columns:minmax(180px,1fr) 120px 34px 34px
+}
+
+.mapping-row input,
+.mapping-row select,
+.template-param input,
+.template-param select,
+.pset-field{
+  height:32px;
+  border:1px solid #cbd2d9;
+  border-radius:5px;
+  padding:0 8px;
+  min-width:0
+}
+
+.readonly{
+  color:#59636d;
+  background:#f5f6f7
+}
+
+.row-actions{
+  display:flex;
+  gap:4px
+}
+
+.status{
+  font-size:12px
+}
+
+.status.ok{
+  color:var(--ok)
+}
+
+.status.warn{
+  color:var(--warn)
+}
+
+.pset{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:8px;
+  margin-bottom:10px;
+  overflow:hidden
+}
+
+.pset-header{
+  display:grid;
+  grid-template-columns:26px minmax(180px,1fr) 70px minmax(150px,1fr) auto;
+  gap:7px;
+  align-items:center;
+  padding:8px
+}
+
+.pset-header input,
+.pset-header select{
+  height:32px;
+  border:1px solid #cbd2d9;
+  border-radius:5px;
+  padding:0 8px
+}
+
+.pset-body{
+  padding:0 10px 10px
+}
+
+.pset-columns{
+  display:grid;
+  grid-template-columns:minmax(180px,1fr) 120px 68px 68px;
+  gap:8px;
+  padding:6px 0;
+  color:var(--muted);
+  font-size:12px;
+  border-bottom:1px solid var(--line)
+}
+
+.pset-add{
+  margin-top:8px
+}
+
+.empty{
+  padding:35px;
+  text-align:center;
+  color:var(--muted)
+}
+
+.template-note{
+  padding:8px 10px;
+  background:#eef5ff;
+  border:1px solid #cfe0ff;
+  border-radius:6px;
+  color:#315d9c;
+  margin-bottom:10px
+}
+
+.hidden{
+  display:none!important
+}
+
+.autocomplete{
+  position:relative
+}
+
+.suggest-box{
+  position:absolute;
+  z-index:50;
+  left:0;
+  right:0;
+  top:34px;
+  background:#fff;
+  border:1px solid #bfc7d0;
+  border-radius:5px;
+  box-shadow:0 5px 15px rgba(0,0,0,.12);
+  max-height:220px;
+  overflow:auto
+}
+
+.suggest-item{
+  padding:8px 10px;
+  cursor:pointer
+}
+
+.suggest-item:hover{
+  background:#eef5ff
+}
+
+.small{
+  font-size:12px;
+  color:var(--muted)
+}
+
+@media(max-width:1000px){
+
+  .workspace{
+    flex-direction:column
+  }
+
+  .panel+.panel{
+    border-left:0;
+    border-top:1px solid var(--line)
+  }
+
+  .mapping-row{
+    grid-template-columns:1fr 100px 1fr 100px 34px
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+
+    <div class="brand">
+      Revit → IFC Mapping
+    </div>
+
+    <button
+      class="btn"
+      onclick="document.getElementById('projectFile').click()">
+      Импорт проекта
+    </button>
+
+    <button
+      class="btn primary"
+      onclick="exportProject()">
+      Экспорт проекта
+    </button>
+
+    <input
+      id="projectFile"
+      type="file"
+      accept=".json"
+      hidden
+      onchange="importProject(event)">
+
+  </div>
+
+
+  <div class="tabs">
+
+    <button
+      class="tab active"
+      data-tab="mapping">
+      ФОП → IFC
+    </button>
+
+    <button
+      class="tab"
+      data-tab="templates">
+      Шаблоны Pset
+    </button>
+
+  </div>
+
+
+  <!-- ========================================================= -->
+  <!-- ФОП → IFC -->
+  <!-- ========================================================= -->
+
+  <section
+    id="mapping"
+    class="tab-content active">
+
+    <div
+      style="width:100%;display:flex;flex-direction:column;min-height:0">
+
+      <div class="toolbar">
+
+        <button
+          class="btn"
+          onclick="document.getElementById('fopFile').click()">
+          Импорт ФОП
+        </button>
+
+        <input
+          id="fopFile"
+          type="file"
+          accept=".txt,.txtf,.csv"
+          hidden
+          onchange="importFop(event)">
+
+
+        <button
+          class="btn"
+          onclick="document.getElementById('mappingFile').click()">
+          Импорт маппинга
+        </button>
+
+        <input
+          id="mappingFile"
+          type="file"
+          accept=".txt,.tsv,.json"
+          hidden
+          onchange="importMapping(event)">
+
+
+        <button
+          class="btn primary"
+          onclick="exportMapping()">
+          Сохранить маппинг
+        </button>
+
+
+        <label class="check">
+
+          <input
+            type="checkbox"
+            id="useTemplates"
+            onchange="refreshTemplateLibraryUI()">
+
+          Использовать шаблон параметров
+
+        </label>
+
+
+        <input
+          class="search"
+          id="fopSearch"
+          placeholder="Поиск параметра..."
+          oninput="renderFop()">
+
+
+        <select
+          id="mappingFilter"
+          class="search"
+          style="min-width:160px"
+          onchange="renderFop()">
+
+          <option value="all">Все</option>
+          <option value="mapped">Замапленные</option>
+          <option value="unmapped">Незамапленные</option>
+
+        </select>
+
+      </div>
+
+
+      <div class="workspace">
+
+        <div class="panel">
+
+          <div class="panel-title">
+
+            <span>
+              ФОП Revit
+            </span>
+
+            <span
+              class="small"
+              id="fopInfo">
+              ФОП не загружен
+            </span>
+
+          </div>
+
+
+          <div
+            class="panel-body"
+            id="fopContainer">
+
+            <div class="empty">
+              Импортируйте ФОП Revit
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="panel">
+
+          <div class="panel-title">
+
+            <span>
+              Подсказки из шаблонов Pset
+            </span>
+
+            <span
+              class="small"
+              id="templateInfo">
+            </span>
+
+          </div>
+
+
+          <div class="panel-body">
+
+            <div class="template-note">
+
+              При включённой опции
+              «Использовать шаблон параметров»
+              поле IFC предлагает свойства из библиотеки шаблонов.
+              Тип IFC подставляется автоматически.
+
+            </div>
+
+            <div id="templatePreview"></div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ========================================================= -->
+  <!-- ШАБЛОНЫ -->
+  <!-- ========================================================= -->
+
+  <section
+    id="templates"
+    class="tab-content">
+
+    <div
+      style="width:100%;display:flex;flex-direction:column;min-height:0">
+
+      <div class="toolbar">
+
+        <button
+          class="btn"
+          onclick="addPset()">
+          + Создать Pset
+        </button>
+
+
+        <button
+          class="btn"
+          onclick="document.getElementById('templateFile').click()">
+          Импорт шаблонов
+        </button>
+
+        <input
+          id="templateFile"
+          type="file"
+          accept=".txt,.tsv,.json"
+          hidden
+          onchange="importTemplates(event)">
+
+
+        <button
+          class="btn primary"
+          onclick="exportTemplates()">
+          Экспорт шаблонов
+        </button>
+
+
+        <input
+          class="search"
+          id="psetSearch"
+          placeholder="Поиск Pset..."
+          oninput="renderTemplates()">
+
+
+        <input
+          class="search"
+          id="ifcSearch"
+          placeholder="Поиск IFC Property / Class..."
+          oninput="renderTemplates()">
+
+      </div>
+
+
+      <div
+        class="panel-body"
+        style="flex:1"
+        id="templatesContainer">
+      </div>
+
+    </div>
+
+  </section>
+
+</div>
+
+
+<script>
+
+/* ============================================================
+   STATE
+============================================================ */
+
+const state = {
+
+  fop: [],
+
+  psets: [],
+
+  ui: {
+
+    groups: new Map(),
+
+    psets: new Map(),
+
+    fopScrollTop: 0,
+
+    templatesScrollTop: 0
+
+  }
+
+};
+
+
+/* ============================================================
+   IFC TYPES
+============================================================ */
+
+const IFC_TYPES = [
+  "Text",
+  "Real",
+  "Integer",
+  "Boolean",
+  "Length",
+  "Area"
+];
+
+
+const FOP_TYPE_ALIASES = {
+
+  text:"Text",
+  string:"Text",
+  stringtype:"Text",
+
+  real:"Real",
+  double:"Real",
+  number:"Real",
+
+  integer:"Integer",
+  int:"Integer",
+
+  boolean:"Boolean",
+  bool:"Boolean",
+
+  length:"Length",
+  lenght:"Length",
+
+  area:"Area"
+
+};
+
+
+/* ============================================================
+   UTILS
+============================================================ */
+
+function esc(v){
+
+  return String(v ?? "").replace(
+    /[&<>"']/g,
+    m => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#039;"
+    }[m])
+  );
+
+}
+
+
+function normalizeType(v){
+
+  const value = String(v || "").trim();
+
+  const key = value
+    .toLowerCase()
+    .replace(/\s+/g,"");
+
+  return FOP_TYPE_ALIASES[key]
+    || (IFC_TYPES.includes(value) ? value : "Text");
+
+}
+
+
+function makeKey(prefix){
+
+  return prefix + "_" +
+    Date.now().toString(36) +
+    "_" +
+    Math.random().toString(36).slice(2,8);
+
+}
+
+
+/* ============================================================
+   STABLE UI KEYS
+============================================================ */
+
+function ensureGroupKeys(){
+
+  state.fop.forEach(g => {
+
+    if(!g._uiKey){
+
+      g._uiKey = makeKey("group");
+
+    }
+
+  });
+
+}
+
+
+function ensurePsetKeys(){
+
+  state.psets.forEach(p => {
+
+    if(!p._uiKey){
+
+      p._uiKey = makeKey("pset");
+
+    }
+
+  });
+
+}
+
+
+/* ============================================================
+   TAB SWITCHING
+============================================================ */
+
+document
+  .querySelectorAll(".tab")
+  .forEach(btn => {
+
+    btn.addEventListener("click", () => {
+
+      document
+        .querySelectorAll(".tab")
+        .forEach(x => x.classList.remove("active"));
+
+      document
+        .querySelectorAll(".tab-content")
+        .forEach(x => x.classList.remove("active"));
+
+      btn.classList.add("active");
+
+      document
+        .getElementById(btn.dataset.tab)
+        .classList.add("active");
+
+
+      /*
+        ВАЖНО:
+
+        При переключении вкладок больше НЕ перерисовываем
+        ФОП.
+
+        Поэтому DOM-состояние GROUP сохраняется автоматически.
+      */
+
+      if(btn.dataset.tab === "templates"){
+
+        renderTemplates();
+
+      }
+
+    });
+
+  });
+
+
+/* ============================================================
+   TEMPLATE PROPERTY LIBRARY
+============================================================ */
+
+function getTemplateProperties(){
+
+  const map = new Map();
+
+  state.psets.forEach(p => {
+
+    p.params.forEach(x => {
+
+      if(!x.name) return;
+
+      const name = x.name.trim();
+
+      if(!name) return;
+
+      if(!map.has(name)){
+
+        map.set(
+          name,
+          {
+            name:name,
+            type:normalizeType(x.type),
+            psets:[p.name]
+          }
+        );
+
+      }
+      else{
+
+        const item = map.get(name);
+
+        if(!item.psets.includes(p.name)){
+
+          item.psets.push(p.name);
+
+        }
+
+      }
+
+    });
+
+  });
+
+
+  return [...map.values()]
+    .sort((a,b) =>
+      a.name.localeCompare(b.name,"ru")
+    );
+
+}
+
+
+/* ============================================================
+   AUTOCOMPLETE
+============================================================ */
+
+function suggestFor(name){
+
+  const all = getTemplateProperties();
+
+  const q = (name || "")
+    .toLowerCase()
+    .trim();
+
+
+  if(!q){
+
+    return all.slice(0,80);
+
+  }
+
+
+  return all
+    .filter(x =>
+      x.name.toLowerCase().includes(q)
+    )
+    .slice(0,80);
+
+}
+
+
+function showSuggestions(input,box,param){
+
+  const arr = suggestFor(input.value);
+
+
+  box.innerHTML = arr.length
+
+    ? arr.map(x => `
+
+        <div
+          class="suggest-item"
+          data-name="${esc(x.name)}">
+
+          ${esc(x.name)}
+
+          <span class="small">
+            · ${esc(x.type)}
+          </span>
+
+        </div>
+
+      `).join("")
+
+    : `
+
+        <div class="suggest-item small">
+          Нет совпадений
+        </div>
+
+      `;
+
+
+  box.classList.remove("hidden");
+
+
+  box
+    .querySelectorAll(".suggest-item[data-name]")
+    .forEach(item => {
+
+      item.onclick = () => {
+
+        const name = item.dataset.name;
+
+        const hit = arr.find(
+          x => x.name === name
+        );
+
+        /*
+          НЕ renderFop()
+
+          Только меняем текущий параметр.
+        */
+
+        param.ifcName = name;
+
+        param.ifcType = hit
+          ? hit.type
+          : inferType(name);
+
+
+        updateMappingRowFromParam(
+          input.closest(".mapping-row"),
+          param
+        );
+
+
+        box.classList.add("hidden");
+
+      };
+
+    });
+
+}
+
+
+function inferType(name){
+
+  const hit =
+    getTemplateProperties()
+      .find(x => x.name === name);
+
+  return hit
+    ? hit.type
+    : "Text";
+
+}
+
+
+/* ============================================================
+   REFRESH TEMPLATE LIBRARY
+============================================================ */
+
+function refreshTemplateLibraryUI(){
+
+  const count =
+    getTemplateProperties().length;
+
+
+  document
+    .getElementById("templateInfo")
+    .textContent =
+      `${count} IFC-свойств`;
+
+
+  renderTemplatePreview();
+
+
+  /*
+    Если autocomplete уже открыт,
+    обновляем его содержимое БЕЗ перерисовки ФОП.
+  */
+
+  document
+    .querySelectorAll(".suggest-box:not(.hidden)")
+    .forEach(box => {
+
+      const input =
+        box.parentElement
+          ?.querySelector("input:not(.readonly)");
+
+      if(!input) return;
+
+
+      const row =
+        input.closest(".mapping-row");
+
+      if(!row || !row._param) return;
+
+
+      showSuggestions(
+        input,
+        box,
+        row._param
+      );
+
+    });
+
+}
+
+
+/* ============================================================
+   IMPORT FOP
+============================================================ */
+
+function importFop(e){
+
+  const file = e.target.files[0];
+
+  if(!file) return;
+
+
+  const reader = new FileReader();
+
+
+  reader.onload = () => {
+
+    try{
+
+      state.fop =
+        parseFop(reader.result);
+
+      state.ui.groups.clear();
+
+      ensureGroupKeys();
+
+      renderFop();
+
+    }
+    catch(err){
+
+      alert(
+        "Ошибка импорта ФОП: " +
+        err.message
+      );
+
+    }
+
+  };
+
+
+  reader.readAsText(
+    file,
+    "UTF-8"
+  );
+
+  e.target.value = "";
+
+}
+
+
+/* ============================================================
+   PARSE FOP
+============================================================ */
+
+function parseFop(text){
+
+  const groupsById =
+    new Map();
+
+  const params = [];
+
+  const lines =
+    text.split(/\r?\n/);
+
+  let section = null;
+
+
+  for(const raw of lines){
+
+    if(!raw.trim()) continue;
+
+
+    const parts =
+      raw.split("\t");
+
+
+    if(parts[0].trim() === "*GROUP"){
+
+      section = "GROUP";
+
+      continue;
+
+    }
+
+
+    if(parts[0].trim() === "*PARAM"){
+
+      section = "PARAM";
+
+      continue;
+
+    }
+
+
+    if(
+      parts[0]
+        .trim()
+        .startsWith("*")
+    ){
+
+      continue;
+
+    }
+
+
+    if(section === "GROUP"){
+
+      if(
+        parts[0].trim() !== "GROUP"
+      ){
+
+        continue;
+
+      }
+
+
+      const id =
+        (parts[1] || "").trim();
+
+      const name =
+        (parts[2] || "").trim();
+
+
+      if(!id) continue;
+
+
+      groupsById.set(
+        id,
+        {
+          id:id,
+          name:
+            name ||
+            ("GROUP " + id),
+
+          params:[],
+
+          _uiKey:makeKey("group")
+
+        }
+      );
+
+
+      continue;
+
+    }
+
+
+    if(section === "PARAM"){
+
+      if(
+        parts[0].trim() !== "PARAM"
+      ){
+
+        continue;
+
+      }
+
+
+      const guid =
+        (parts[1] || "").trim();
+
+      const name =
+        (parts[2] || "").trim();
+
+      const datatype =
+        (parts[3] || "").trim();
+
+      const datacategory =
+        (parts[4] || "").trim();
+
+      const groupId =
+        (parts[5] || "").trim();
+
+      const visible =
+        (parts[6] || "").trim();
+
+      const description =
+        (parts[7] || "").trim();
+
+      const usermodifiable =
+        (parts[8] || "").trim();
+
+      const hidewhennovalue =
+        (parts[9] || "").trim();
+
+
+      if(!name) continue;
+
+
+      params.push({
+
+        guid,
+
+        name,
+
+        type:
+          datatype || "TEXT",
+
+        datatype,
+
+        datacategory,
+
+        groupId,
+
+        visible,
+
+        description,
+
+        usermodifiable,
+
+        hidewhennovalue,
+
+        ifcName:"",
+
+        ifcType:"Text"
+
+      });
+
+    }
+
+  }
+
+
+  const groups =
+    [...groupsById.values()];
+
+
+  params.forEach(param => {
+
+    let group =
+      groupsById.get(
+        param.groupId
+      );
+
+
+    if(!group){
+
+      const id =
+        param.groupId || "undefined";
+
+
+      group =
+        groupsById.get(id);
+
+
+      if(!group){
+
+        group = {
+
+          id:id,
+
+          name:
+            param.groupId
+              ? "GROUP " + param.groupId
+              : "Без группы",
+
+          params:[],
+
+          _uiKey:
+            makeKey("group")
+
+        };
+
+
+        groupsById.set(
+          id,
+          group
+        );
+
+
+        groups.push(group);
+
+      }
+
+    }
+
+
+    group.params.push(param);
+
+  });
+
+
+  return groups;
+
+}
+
+
+/* ============================================================
+   FOP RENDER
+============================================================ */
+
+function renderFop(){
+
+  ensureGroupKeys();
+
+
+  const box =
+    document.getElementById(
+      "fopContainer"
+    );
+
+
+  /*
+    Сохраняем scroll перед render.
+
+    В обычном назначении IFC этот render
+    вообще НЕ вызывается.
+  */
+
+  const previousScroll =
+    box.scrollTop;
+
+
+  const search =
+    (
+      document
+        .getElementById("fopSearch")
+        .value || ""
+    )
+    .toLowerCase()
+    .trim();
+
+
+  const filter =
+    document
+      .getElementById("mappingFilter")
+      .value;
+
+
+  let total = 0;
+  let mapped = 0;
+
+
+  state.fop.forEach(g => {
+
+    g.params.forEach(p => {
+
+      total++;
+
+      if(p.ifcName){
+
+        mapped++;
+
+      }
+
+    });
+
+  });
+
+
+  document
+    .getElementById("fopInfo")
+    .textContent = state.fop.length
+
+      ? `${total} параметров · ${mapped} сопоставлено`
+
+      : "ФОП не загружен";
+
+
+  refreshTemplateLibraryUI();
+
+
+  if(!state.fop.length){
+
+    box.innerHTML =
+      '<div class="empty">Импортируйте ФОП Revit</div>';
+
+    return;
+
+  }
+
+
+  box.innerHTML = "";
+
+
+  state.fop.forEach(g => {
+
+    const visible =
+      g.params.filter(p => {
+
+        const matches =
+          !search ||
+          p.name
+            .toLowerCase()
+            .includes(search) ||
+          (p.ifcName || "")
+            .toLowerCase()
+            .includes(search);
+
+
+        const status =
+          filter === "all" ||
+
+          (
+            filter === "mapped" &&
+            p.ifcName
+          ) ||
+
+          (
+            filter === "unmapped" &&
+            !p.ifcName
+          );
+
+
+        return matches && status;
+
+      });
+
+
+    if(
+      !visible.length &&
+      (search || filter !== "all")
+    ){
+
+      return;
+
+    }
+
+
+    const mappedGroup =
+      g.params
+        .filter(p => p.ifcName)
+        .length;
+
+
+    const group =
+      document.createElement("div");
+
+    group.className = "group";
+
+
+    const stored =
+      state.ui.groups.get(
+        g._uiKey
+      );
+
+
+    /*
+      По умолчанию GROUP закрыт.
+      После первого открытия состояние сохраняется.
+    */
+
+    const open =
+      stored === undefined
+        ? false
+        : stored;
+
+
+    group.innerHTML = `
+
+      <div class="group-header">
+
+        <button class="group-toggle">
+          ${open ? "▼" : "▶"}
+        </button>
+
+        <div
+          class="group-name"
+          title="ID группы: ${esc(g.id)}">
+
+          ${esc(g.name)}
+
+        </div>
+
+        <div class="group-count">
+
+          ${mappedGroup}
+          /
+          ${g.params.length}
+          параметров
+
+        </div>
+
+      </div>
+
+
+      <div
+        class="rows"
+        ${open ? "" : "style='display:none'"}>
+
+      </div>
+
+    `;
+
+
+    const rows =
+      group.querySelector(".rows");
+
+
+    const toggle =
+      group.querySelector(
+        ".group-toggle"
+      );
+
+
+    toggle.onclick = () => {
+
+      const isOpen =
+        rows.style.display !== "none";
+
+
+      const newState =
+        !isOpen;
+
+
+      rows.style.display =
+        newState ? "" : "none";
+
+
+      toggle.textContent =
+        newState ? "▼" : "▶";
+
+
+      state.ui.groups.set(
+        g._uiKey,
+        newState
+      );
+
+    };
+
+
+    visible.forEach(p => {
+
+      const row =
+        document.createElement("div");
+
+      row.className =
+        "mapping-row";
+
+
+      /*
+        Сохраняем ссылку на параметр прямо
+        в DOM-строке.
+
+        Это позволяет обновлять только строку.
+      */
+
+      row._param = p;
+
+
+      row.title =
+        p.description
+          ? p.description
+          : "Описание отсутствует";
+
+
+      row.innerHTML = `
+
+        <input
+          class="readonly"
+          value="${esc(p.name)}"
+          readonly
+          title="${esc(
+            p.description ||
+            "Описание отсутствует"
+          )}">
+
+
+        <input
+          class="readonly"
+          value="${esc(
+            p.datatype || p.type
+          )}"
+          readonly>
+
+
+        <div class="autocomplete">
+
+          <input
+            value="${esc(p.ifcName)}"
+            placeholder="IFC Property..."
+            autocomplete="off">
+
+          <div
+            class="suggest-box hidden">
+          </div>
+
+        </div>
+
+
+        <select>
+
+          ${IFC_TYPES.map(t => `
+
+            <option
+              ${t === p.ifcType
+                ? "selected"
+                : ""}>
+
+              ${t}
+
+            </option>
+
+          `).join("")}
+
+        </select>
+
+
+        <div class="status"></div>
+
+      `;
+
+
+      const input =
+        row.querySelector(
+          "input:not(.readonly)"
+        );
+
+
+      const select =
+        row.querySelector("select");
+
+
+      const status =
+        row.querySelector(".status");
+
+
+      input.addEventListener(
+        "input",
+        () => {
+
+          /*
+            КЛЮЧЕВОЕ ИЗМЕНЕНИЕ:
+
+            НИКАКОГО renderFop().
+          */
+
+          p.ifcName =
+            input.value.trim();
+
+
+          const hit =
+            getTemplateProperties()
+              .find(
+                x => x.name === p.ifcName
+              );
+
+
+          if(hit){
+
+            p.ifcType =
+              hit.type;
+
+            select.value =
+              hit.type;
+
+          }
+
+
+          updateStatus(
+            status,
+            p
+          );
+
+        }
+      );
+
+
+      input.addEventListener(
+        "focus",
+        () => {
+
+          if(
+            document
+              .getElementById(
+                "useTemplates"
+              )
+              .checked
+          ){
+
+            showSuggestions(
+              input,
+              row.querySelector(
+                ".suggest-box"
+              ),
+              p
+            );
+
+          }
+
+        }
+      );
+
+
+      input.addEventListener(
+        "blur",
+        () => {
+
+          setTimeout(
+            () => {
+
+              row
+                .querySelector(
+                  ".suggest-box"
+                )
+                .classList
+                .add("hidden");
+
+            },
+            180
+          );
+
+        }
+      );
+
+
+      select.addEventListener(
+        "change",
+        () => {
+
+          /*
+            Только текущий параметр.
+          */
+
+          p.ifcType =
+            select.value;
+
+
+          updateStatus(
+            status,
+            p
+          );
+
+        }
+      );
+
+
+      updateStatus(
+        status,
+        p
+      );
+
+
+      rows.appendChild(row);
+
+    });
+
+
+    box.appendChild(group);
+
+  });
+
+
+  /*
+    Возвращаем прокрутку после
+    поисковой фильтрации/перерисовки.
+  */
+
+  requestAnimationFrame(() => {
+
+    box.scrollTop =
+      previousScroll;
+
+  });
+
+}
+
+
+/* ============================================================
+   UPDATE ONLY CURRENT MAPPING ROW
+============================================================ */
+
+function updateMappingRowFromParam(
+  row,
+  param
+){
+
+  if(!row) return;
+
+
+  const input =
+    row.querySelector(
+      "input:not(.readonly)"
+    );
+
+
+  const select =
+    row.querySelector("select");
+
+
+  const status =
+    row.querySelector(".status");
+
+
+  if(input){
+
+    input.value =
+      param.ifcName || "";
+
+  }
+
+
+  if(select){
+
+    select.value =
+      param.ifcType || "Text";
+
+  }
+
+
+  updateStatus(
+    status,
+    param
+  );
+
+}
+
+
+/* ============================================================
+   STATUS
+============================================================ */
+
+function updateStatus(el,p){
+
+  if(!el) return;
+
+
+  if(!p.ifcName){
+
+    el.className =
+      "status";
+
+    el.textContent = "";
+
+  }
+
+  else if(
+    normalizeType(p.type) ===
+    normalizeType(p.ifcType)
+  ){
+
+    el.className =
+      "status ok";
+
+    el.textContent =
+      "✓";
+
+  }
+
+  else{
+
+    el.className =
+      "status warn";
+
+    el.textContent =
+      "⚠";
+
+  }
+
+}
+
+
+/* ============================================================
+   TEMPLATE PREVIEW
+============================================================ */
+
+function renderTemplatePreview(){
+
+  const box =
+    document.getElementById(
+      "templatePreview"
+    );
+
+
+  const all =
+    getTemplateProperties();
+
+
+  if(!all.length){
+
+    box.innerHTML =
+      '<div class="empty">Шаблоны Pset пока не созданы</div>';
+
+    return;
+
+  }
+
+
+  box.innerHTML =
+    all
+      .slice(0,120)
+      .map(x => `
+
+        <div
+          style="
+            padding:7px 0;
+            border-bottom:1px solid #edf0f2">
+
+          <b>
+            ${esc(x.name)}
+          </b>
+
+          <span class="small">
+
+            · ${esc(x.type)}
+
+            · ${esc(
+              x.psets.join(", ")
+            )}
+
+          </span>
+
+        </div>
+
+      `)
+      .join("");
+
+}
+
+
+/* ============================================================
+   PSETS
+============================================================ */
+
+function addPset(){
+
+  state.psets.push({
+
+    name:"Новый Pset",
+
+    mode:"I",
+
+    ifcClass:"",
+
+    params:[],
+
+    _uiKey:
+      makeKey("pset")
+
+  });
+
+
+  /*
+    Рендерим только вкладку Pset.
+
+    Состояние раскрытия сохраняется.
+  */
+
+  renderTemplates();
+
+
+  /*
+    Сразу обновляем справочник IFC.
+  */
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+function addTemplateParam(pi){
+
+  const p =
+    state.psets[pi];
+
+
+  if(!p) return;
+
+
+  p.params.push({
+
+    name:"",
+
+    type:"Text"
+
+  });
+
+
+  /*
+    Pset перерисовывается,
+    но его состояние раскрытия сохраняется.
+  */
+
+  renderTemplates();
+
+
+  /*
+    КЛЮЧЕВОЕ:
+
+    Новый параметр уже присутствует
+    в getTemplateProperties(),
+    поэтому autocomplete ФОП
+    сразу использует его.
+  */
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+function deletePset(pi){
+
+  if(
+    !confirm("Удалить Pset?")
+  ){
+
+    return;
+
+  }
+
+
+  state.psets.splice(
+    pi,
+    1
+  );
+
+
+  renderTemplates();
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+function copyPset(pi){
+
+  const src =
+    state.psets[pi];
+
+
+  const copy =
+    JSON.parse(
+      JSON.stringify(src)
+    );
+
+
+  copy._uiKey =
+    makeKey("pset");
+
+
+  state.psets.splice(
+    pi + 1,
+    0,
+    copy
+  );
+
+
+  renderTemplates();
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+function deleteTemplateParam(
+  pi,
+  ri
+){
+
+  state.psets[pi]
+    .params
+    .splice(
+      ri,
+      1
+    );
+
+
+  renderTemplates();
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+function copyTemplateParam(
+  pi,
+  ri
+){
+
+  const x =
+    state.psets[pi]
+      .params[ri];
+
+
+  state.psets[pi]
+    .params
+    .splice(
+      ri + 1,
+      0,
+      {...x}
+    );
+
+
+  renderTemplates();
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+function moveParam(
+  pi,
+  ri,
+  dir
+){
+
+  const arr =
+    state.psets[pi].params;
+
+
+  const ni =
+    ri + dir;
+
+
+  if(
+    ni < 0 ||
+    ni >= arr.length
+  ){
+
+    return;
+
+  }
+
+
+  [
+    arr[ri],
+    arr[ni]
+  ] =
+  [
+    arr[ni],
+    arr[ri]
+  ];
+
+
+  renderTemplates();
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+/* ============================================================
+   TEMPLATE RENDER
+============================================================ */
+
+function renderTemplates(){
+
+  ensurePsetKeys();
+
+
+  const box =
+    document.getElementById(
+      "templatesContainer"
+    );
+
+
+  /*
+    Сохраняем scroll.
+  */
+
+  const previousScroll =
+    box.scrollTop;
+
+
+  const ps =
+    (
+      document
+        .getElementById(
+          "psetSearch"
+        )
+        .value || ""
+    )
+    .toLowerCase()
+    .trim();
+
+
+  const is =
+    (
+      document
+        .getElementById(
+          "ifcSearch"
+        )
+        .value || ""
+    )
+    .toLowerCase()
+    .trim();
+
+
+  box.innerHTML = "";
+
+
+  let shown = 0;
+
+
+  state.psets.forEach(
+    (p,pi) => {
+
+      const pMatch =
+        !ps ||
+
+        p.name
+          .toLowerCase()
+          .includes(ps) ||
+
+        p.ifcClass
+          .toLowerCase()
+          .includes(ps);
+
+
+      const params =
+        p.params.filter(x =>
+
+          !is ||
+
+          x.name
+            .toLowerCase()
+            .includes(is) ||
+
+          x.type
+            .toLowerCase()
+            .includes(is)
+
+        );
+
+
+      if(
+        !pMatch &&
+        !params.length
+      ){
+
+        return;
+
+      }
+
+
+      shown++;
+
+
+      const card =
+        document.createElement("div");
+
+
+      card.className =
+        "pset";
+
+
+      const stored =
+        state.ui.psets.get(
+          p._uiKey
+        );
+
+
+      /*
+        По умолчанию Pset открыт.
+      */
+
+      const open =
+        stored === undefined
+          ? true
+          : stored;
+
+
+      card.innerHTML = `
+
+        <div class="pset-header">
+
+          <button
+            class="btn icon toggle"
+            title="Свернуть">
+
+            ${open ? "▼" : "▶"}
+
+          </button>
+
+
+          <input
+            value="${esc(p.name)}"
+            placeholder="Имя Pset">
+
+
+          <select>
+
+            <option
+              ${p.mode === "I"
+                ? "selected"
+                : ""}>
+
+              I
+
+            </option>
+
+            <option
+              ${p.mode === "T"
+                ? "selected"
+                : ""}>
+
+              T
+
+            </option>
+
+          </select>
+
+
+          <input
+            value="${esc(p.ifcClass)}"
+            placeholder="IfcClass">
+
+
+          <div
+            style="display:flex;gap:4px">
+
+            <button
+              class="btn icon"
+              title="Копировать Pset">
+
+              ⧉
+
+            </button>
+
+
+            <button
+              class="btn icon danger"
+              title="Удалить Pset">
+
+              🗑
+
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="pset-body"
+          ${open ? "" : "style='display:none'"}>
+
+          <div class="pset-columns">
+
+            <span>
+              IFC Property
+            </span>
+
+            <span>
+              Тип IFC
+            </span>
+
+            <span></span>
+
+            <span></span>
+
+          </div>
+
+
+          <div class="params"></div>
+
+
+          <button
+            class="btn pset-add">
+
+            + Параметр
+
+          </button>
+
+        </div>
+
+      `;
+
+
+      const header =
+        card.querySelector(
+          ".pset-header"
+        );
+
+
+      const inputs =
+        header.querySelectorAll(
+          "input"
+        );
+
+
+      /*
+        Изменение имени Pset.
+
+        Не трогаем ФОП.
+      */
+
+      inputs[0].oninput =
+        e => {
+
+          p.name =
+            e.target.value;
+
+          refreshTemplateLibraryUI();
+
+        };
+
+
+      inputs[1].oninput =
+        e => {
+
+          p.ifcClass =
+            e.target.value;
+
+          refreshTemplateLibraryUI();
+
+        };
+
+
+      header
+        .querySelector("select")
+        .onchange =
+          e => {
+
+            p.mode =
+              e.target.value;
+
+            refreshTemplateLibraryUI();
+
+          };
+
+
+      /*
+        Состояние раскрытия Pset.
+      */
+
+      header
+        .querySelector(".toggle")
+        .onclick = () => {
+
+          const body =
+            card.querySelector(
+              ".pset-body"
+            );
+
+
+          const b =
+            header.querySelector(
+              ".toggle"
+            );
+
+
+          const isOpen =
+            !body.classList.contains(
+              "hidden"
+            ) &&
+            body.style.display !== "none";
+
+
+          const newState =
+            !isOpen;
+
+
+          body.style.display =
+            newState
+              ? ""
+              : "none";
+
+
+          body.classList.toggle(
+            "hidden",
+            !newState
+          );
+
+
+          b.textContent =
+            newState
+              ? "▼"
+              : "▶";
+
+
+          state.ui.psets.set(
+            p._uiKey,
+            newState
+          );
+
+        };
+
+
+      const icons =
+        header.querySelectorAll(
+          ".icon"
+        );
+
+
+      icons[1].onclick =
+        () => copyPset(pi);
+
+
+      icons[2].onclick =
+        () => deletePset(pi);
+
+
+      const paramsBox =
+        card.querySelector(
+          ".params"
+        );
+
+
+      params.forEach(x => {
+
+        const ri =
+          p.params.indexOf(x);
+
+
+        const row =
+          document.createElement(
+            "div"
+          );
+
+
+        row.className =
+          "template-param";
+
+
+        row.innerHTML = `
+
+          <input
+            value="${esc(x.name)}"
+            placeholder="Имя IFC Property">
+
+
+          <select>
+
+            ${IFC_TYPES.map(t => `
+
+              <option
+                ${t === x.type
+                  ? "selected"
+                  : ""}>
+
+                ${t}
+
+              </option>
+
+            `).join("")}
+
+          </select>
+
+
+          <button
+            class="btn icon"
+            title="Копировать">
+
+            ⧉
+
+          </button>
+
+
+          <button
+            class="btn icon danger"
+            title="Удалить">
+
+            🗑
+
+          </button>
+
+        `;
+
+
+        /*
+          ИЗМЕНЕНИЕ ИМЕНИ IFC PROPERTY
+
+          Не вызываем renderTemplates().
+          Иначе строка будет пересоздана.
+
+          Просто обновляем справочник.
+        */
+
+        row
+          .querySelector("input")
+          .oninput =
+            e => {
+
+              x.name =
+                e.target.value;
+
+              refreshTemplateLibraryUI();
+
+            };
+
+
+        row
+          .querySelector("select")
+          .onchange =
+            e => {
+
+              x.type =
+                e.target.value;
+
+              refreshTemplateLibraryUI();
+
+            };
+
+
+        row
+          .querySelectorAll(
+            "button"
+          )[0]
+          .onclick =
+            () =>
+              copyTemplateParam(
+                pi,
+                ri
+              );
+
+
+        row
+          .querySelectorAll(
+            "button"
+          )[1]
+          .onclick =
+            () =>
+              deleteTemplateParam(
+                pi,
+                ri
+              );
+
+
+        paramsBox.appendChild(
+          row
+        );
+
+      });
+
+
+      card
+        .querySelector(
+          ".pset-add"
+        )
+        .onclick =
+          () =>
+            addTemplateParam(pi);
+
+
+      box.appendChild(card);
+
+    }
+  );
+
+
+  if(!shown){
+
+    box.innerHTML =
+      '<div class="empty">Pset не найдены</div>';
+
+  }
+
+
+  /*
+    Возвращаем scroll.
+  */
+
+  requestAnimationFrame(() => {
+
+    box.scrollTop =
+      previousScroll;
+
+  });
+
+
+  /*
+    Справочник всегда актуален.
+  */
+
+  refreshTemplateLibraryUI();
+
+}
+
+
+/* ============================================================
+   EXPORT TEMPLATES
+============================================================ */
+
+function exportTemplates(){
+
+  const lines = [];
+
+
+  state.psets.forEach(p => {
+
+    lines.push(
+      [
+        "PropertySet:",
+        p.name,
+        p.mode,
+        p.ifcClass,
+        "",
+        "",
+        "",
+        ""
+      ].join("\t")
+    );
+
+
+    p.params.forEach(x => {
+
+      lines.push(
+        [
+          "",
+          x.name,
+          x.type,
+          "",
+          "",
+          "",
+          "",
+          ""
+        ].join("\t")
+      );
+
+    });
+
+  });
+
+
+  downloadText(
+    lines.join("\n"),
+    "pset_templates.txt"
+  );
+
+}
+
+
+/* ============================================================
+   IMPORT TEMPLATES
+============================================================ */
+
+function importTemplates(e){
+
+  const file =
+    e.target.files[0];
+
+
+  if(!file) return;
+
+
+  const r =
+    new FileReader();
+
+
+  r.onload = () => {
+
+    try{
+
+      const text =
+        r.result;
+
+
+      if(
+        file.name
+          .toLowerCase()
+          .endsWith(".json")
+      ){
+
+        const data =
+          JSON.parse(text);
+
+
+        state.psets =
+          Array.isArray(data)
+            ? data
+            : (data.psets || []);
+
+      }
+      else{
+
+        state.psets =
+          parsePsets(text);
+
+      }
+
+
+      state.ui.psets.clear();
+
+      ensurePsetKeys();
+
+      renderTemplates();
+
+      refreshTemplateLibraryUI();
+
+    }
+    catch(err){
+
+      alert(
+        "Ошибка импорта шаблонов: " +
+        err.message
+      );
+
+    }
+
+  };
+
+
+  r.readAsText(
+    file,
+    "UTF-8"
+  );
+
+
+  e.target.value = "";
+
+}
+
+
+/* ============================================================
+   PARSE PSETS
+============================================================ */
+
+function parsePsets(text){
+
+  const arr = [];
+
+  let current = null;
+
+
+  text
+    .split(/\r?\n/)
+    .forEach(raw => {
+
+      if(!raw.trim()) return;
+
+
+      const p =
+        raw.split("\t");
+
+
+      if(
+        p[0] === "PropertySet:"
+      ){
+
+        current = {
+
+          name:
+            p[1] || "",
+
+          mode:
+            p[2] || "I",
+
+          ifcClass:
+            p[3] || "",
+
+          params:[],
+
+          _uiKey:
+            makeKey("pset")
+
+        };
+
+
+        arr.push(
+          current
+        );
+
+      }
+
+      else if(current){
+
+        current.params.push({
+
+          name:
+            p[1] || "",
+
+          type:
+            normalizeType(
+              p[2] || "Text"
+            )
+
+        });
+
+      }
+
+    });
+
+
+  return arr;
+
+}
+
+
+/* ============================================================
+   EXPORT MAPPING
+============================================================ */
+
+function exportMapping(){
+
+  if(!state.fop.length){
+
+    alert(
+      "Сначала импортируйте ФОП."
+    );
+
+    return;
+
+  }
+
+
+  const lines = [];
+
+
+  state.fop.forEach(g => {
+
+    lines.push(
+      [
+        "GROUP",
+        g.name
+      ].join("\t")
+    );
+
+
+    g.params.forEach(p => {
+
+      lines.push(
+        [
+          "PARAM",
+          p.name,
+          p.datatype || p.type,
+          p.ifcName || "",
+          p.ifcType || ""
+        ].join("\t")
+      );
+
+    });
+
+  });
+
+
+  downloadText(
+    lines.join("\n"),
+    "fop_ifc_mapping.txt"
+  );
+
+}
+
+
+/* ============================================================
+   IMPORT MAPPING
+============================================================ */
+
+function importMapping(e){
+
+  const file =
+    e.target.files[0];
+
+
+  if(!file) return;
+
+
+  const r =
+    new FileReader();
+
+
+  r.onload = () => {
+
+    try{
+
+      const text =
+        r.result;
+
+
+      if(
+        file.name
+          .toLowerCase()
+          .endsWith(".json")
+      ){
+
+        const data =
+          JSON.parse(text);
+
+
+        state.fop =
+          data.fop || data;
+
+        ensureGroupKeys();
+
+      }
+      else{
+
+        applyMappingText(text);
+
+      }
+
+
+      renderFop();
+
+    }
+    catch(err){
+
+      alert(
+        "Ошибка импорта маппинга: " +
+        err.message
+      );
+
+    }
+
+  };
+
+
+  r.readAsText(
+    file,
+    "UTF-8"
+  );
+
+
+  e.target.value = "";
+
+}
+
+
+/* ============================================================
+   APPLY MAPPING TEXT
+============================================================ */
+
+function applyMappingText(text){
+
+  const lines =
+    text.split(/\r?\n/);
+
+
+  const hasGroupParam =
+    lines.some(line => {
+
+      const p =
+        line.split("\t");
+
+      return (
+        p[0] === "GROUP" ||
+        p[0] === "PARAM"
+      );
+
+    });
+
+
+  if(hasGroupParam){
+
+    const mappedGroups = [];
+
+    let current = null;
+
+
+    lines.forEach(raw => {
+
+      if(!raw.trim()) return;
+
+
+      const p =
+        raw.split("\t");
+
+
+      if(p[0] === "GROUP"){
+
+        current = {
+
+          id:"",
+
+          name:
+            p[1] ||
+            "Без группы",
+
+          params:[],
+
+          _uiKey:
+            makeKey("group")
+
+        };
+
+
+        mappedGroups.push(
+          current
+        );
+
+
+        return;
+
+      }
+
+
+      if(
+        p[0] === "PARAM" &&
+        current
+      ){
+
+        current.params.push({
+
+          guid:"",
+
+          name:
+            p[1] || "",
+
+          type:
+            p[2] || "TEXT",
+
+          datatype:
+            p[2] || "TEXT",
+
+          datacategory:"",
+
+          groupId:
+            current.id,
+
+          visible:"",
+
+          description:"",
+
+          usermodifiable:"",
+
+          hidewhennovalue:"",
+
+          ifcName:
+            p[3] || "",
+
+          ifcType:
+            normalizeType(
+              p[4] || "Text"
+            )
+
+        });
+
+      }
+
+    });
+
+
+    /*
+      Если ФОП уже существует,
+      меняем только IFC-сопоставление.
+    */
+
+    if(state.fop.length){
+
+      const imported =
+        new Map();
+
+
+      mappedGroups.forEach(g => {
+
+        g.params.forEach(p => {
+
+          imported.set(
+            p.name,
+            p
+          );
+
+        });
+
+      });
+
+
+      state.fop.forEach(g => {
+
+        g.params.forEach(p => {
+
+          const m =
+            imported.get(
+              p.name
+            );
+
+
+          if(m){
+
+            p.ifcName =
+              m.ifcName;
+
+            p.ifcType =
+              m.ifcType;
+
+          }
+
+        });
+
+      });
+
+    }
+
+    else{
+
+      state.fop =
+        mappedGroups;
+
+      ensureGroupKeys();
+
+    }
+
+
+    return;
+
+  }
+
+
+  /*
+    Старый PropertySet mapping.
+  */
+
+  const map =
+    new Map();
+
+
+  let current = null;
+
+
+  lines.forEach(raw => {
+
+    if(!raw.trim()) return;
+
+
+    const p =
+      raw.split("\t");
+
+
+    if(
+      p[0] === "PropertySet:"
+    ){
+
+      current =
+        p[1] || "";
+
+      return;
+
+    }
+
+
+    if(
+      current &&
+      p.length >= 4
+    ){
+
+      const ifcName =
+        (p[1] || "").trim();
+
+
+      const ifcType =
+        normalizeType(
+          p[2] || "Text"
+        );
+
+
+      const revitName =
+        (p[3] || "").trim();
+
+
+      if(revitName){
+
+        map.set(
+          revitName,
+          {
+            ifcName,
+            ifcType
+          }
+        );
+
+      }
+
+    }
+
+  });
+
+
+  state.fop.forEach(g => {
+
+    g.params.forEach(p => {
+
+      const m =
+        map.get(p.name);
+
+
+      if(m){
+
+        p.ifcName =
+          m.ifcName;
+
+        p.ifcType =
+          m.ifcType;
+
+      }
+
+    });
+
+  });
+
+}
+
+
+/* ============================================================
+   PROJECT EXPORT
+============================================================ */
+
+function exportProject(){
+
+  /*
+    UI-состояние специально НЕ экспортируем.
+
+    Это состояние интерфейса конкретного сеанса,
+    а не данные проекта.
+  */
+
+  const data = {
+
+    fop:
+      state.fop,
+
+    psets:
+      state.psets
+
+  };
+
+
+  const blob =
+    new Blob(
+      [
+        JSON.stringify(
+          data,
+          null,
+          2
+        )
+      ],
+      {
+        type:
+          "application/json;charset=utf-8"
+      }
+    );
+
+
+  const a =
+    document.createElement("a");
+
+
+  a.href =
+    URL.createObjectURL(blob);
+
+
+  a.download =
+    "revit_ifc_mapping_project.json";
+
+
+  a.click();
+
+
+  setTimeout(
+    () =>
+      URL.revokeObjectURL(
+        a.href
+      ),
+    1000
+  );
+
+}
+
+
+/* ============================================================
+   PROJECT IMPORT
+============================================================ */
+
+function importProject(e){
+
+  const file =
+    e.target.files[0];
+
+
+  if(!file) return;
+
+
+  const r =
+    new FileReader();
+
+
+  r.onload = () => {
+
+    try{
+
+      const d =
+        JSON.parse(
+          r.result
+        );
+
+
+      state.fop =
+        d.fop || [];
+
+
+      state.psets =
+        d.psets || [];
+
+
+      state.ui.groups.clear();
+
+      state.ui.psets.clear();
+
+
+      ensureGroupKeys();
+
+      ensurePsetKeys();
+
+
+      renderFop();
+
+      renderTemplates();
+
+    }
+    catch(err){
+
+      alert(
+        "Ошибка импорта проекта: " +
+        err.message
+      );
+
+    }
+
+  };
+
+
+  r.readAsText(
+    file,
+    "UTF-8"
+  );
+
+
+  e.target.value = "";
+
+}
+
+
+/* ============================================================
+   DOWNLOAD
+============================================================ */
+
+function downloadText(
+  text,
+  name
+){
+
+  const blob =
+    new Blob(
+      [text],
+      {
+        type:
+          "text/plain;charset=utf-8"
+      }
+    );
+
+
+  const a =
+    document.createElement("a");
+
+
+  a.href =
+    URL.createObjectURL(
+      blob
+    );
+
+
+  a.download =
+    name;
+
+
+  a.click();
+
+
+  setTimeout(
+    () =>
+      URL.revokeObjectURL(
+        a.href
+      ),
+    1000
+  );
+
+}
+
+
+/* ============================================================
+   INITIALIZATION
+============================================================ */
+
+ensureGroupKeys();
+
+ensurePsetKeys();
+
+renderFop();
+
+renderTemplates();
+
+</script>
+
+</body>
+</html>
