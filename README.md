@@ -53,3 +53,6 @@
 
 ---
 
+
+Autodesk, Revit are registered trademarks of Autodesk, Inc. This project is an independent development and is not affiliated with, sponsored, or endorsed by Autodesk, Inc
+
