@@ -563,6 +563,10 @@ select:focus {
             Импорт маппинга
         </button>
 
+        <button id="importIdsBtn">
+            Импорт IDS
+        </button>
+
         <button id="saveBtn">
             Сохранить маппинг
         </button>
@@ -616,6 +620,12 @@ select:focus {
     id="importFile"
     type="file"
     accept=".txt"
+/>
+
+<input
+    id="importIdsFile"
+    type="file"
+    accept=".ids,.xml,text/xml,application/xml"
 />
 
 
@@ -740,6 +750,16 @@ const addPsetBtn =
 const importBtn =
     document.getElementById(
         "importBtn"
+    );
+
+const importIdsBtn =
+    document.getElementById(
+        "importIdsBtn"
+    );
+
+const importIdsFile =
+    document.getElementById(
+        "importIdsFile"
     );
 
 const saveBtn =
@@ -2551,6 +2571,672 @@ function importMappingText(
     render();
 }
 
+
+
+/* =========================================================
+   IDS IMPORT
+========================================================= */
+
+/*
+    IDS -> preliminary mapping
+
+    What is extracted from IDS:
+      - IFC class: applicability/entity/@name
+      - PropertySet: requirements/propertySet/@name
+      - IFC property: requirements/propertySet/property/@name
+      - IFC datatype: property/@datatype
+
+    The result is converted into the editor's native structure:
+      {
+          name: "Pset_...",
+          ifcClass: "IfcWall",
+          parameters: [
+              {
+                  ifcProperty: "Reference",
+                  type: "Text",
+                  revitParameter: "Reference"
+              }
+          ]
+      }
+
+    IDS uses XML namespaces, so selectors are intentionally
+    namespace-independent (local-name()).
+*/
+
+function xmlLocalName(element) {
+    return element && element.localName
+        ? element.localName
+        : String(element && element.nodeName || "")
+            .split(":")
+            .pop();
+}
+
+function getDirectChildren(element, localName) {
+    if (!element) return [];
+
+    return Array.from(element.children || [])
+        .filter(child => xmlLocalName(child) === localName);
+}
+
+function getDescendants(element, localName) {
+    if (!element) return [];
+
+    return Array.from(element.getElementsByTagName("*"))
+        .filter(node => xmlLocalName(node) === localName);
+}
+
+function getFirstDirectChild(element, localName) {
+    return getDirectChildren(element, localName)[0] || null;
+}
+
+function getAttributeIgnoreCase(element, names) {
+    if (!element) return "";
+
+    for (const name of names) {
+        const direct = element.getAttribute(name);
+        if (direct !== null && String(direct).trim() !== "") {
+            return String(direct).trim();
+        }
+    }
+
+    const attrs = Array.from(element.attributes || []);
+
+    for (const wanted of names) {
+        const found = attrs.find(
+            attr =>
+                String(attr.name).toLowerCase() ===
+                String(wanted).toLowerCase()
+        );
+
+        if (
+            found &&
+            String(found.value).trim() !== ""
+        ) {
+            return String(found.value).trim();
+        }
+    }
+
+    return "";
+}
+
+function normalizeIfcClass(value) {
+    if (!value) return "";
+
+    let result = String(value).trim();
+
+    // IDS normally stores e.g. "IfcWall".
+    // Keep the original value, but remove XML-ish whitespace.
+    result = result.replace(/\s+/g, " ");
+
+    return result;
+}
+
+function normalizeIfcType(value) {
+    if (!value) return "Text";
+
+    const raw = String(value)
+        .trim()
+        .toUpperCase()
+        .replace(/^IFC/, "");
+
+    /*
+        IFC / IDS datatype -> editor datatype.
+
+        Text:
+          IfcText, IfcLabel, IfcIdentifier, IfcBoolean-like
+          values are handled below explicitly.
+        Real:
+          IfcReal, IfcPositiveRatioMeasure, IfcRatioMeasure, etc.
+        Integer:
+          IfcInteger, IfcCountMeasure
+        Length:
+          IfcLengthMeasure
+        Area:
+          IfcAreaMeasure
+        Boolean:
+          IfcBoolean
+    */
+
+    if (
+        raw === "BOOLEAN" ||
+        raw === "LOGICAL"
+    ) {
+        return "Boolean";
+    }
+
+    if (
+        raw === "INTEGER" ||
+        raw === "COUNTMEASURE"
+    ) {
+        return "Integer";
+    }
+
+    if (
+        raw === "LENGTHMEASURE" ||
+        raw === "POSITIVELENGTHMEASURE" ||
+        raw === "NONNEGATIVELENGTHMEASURE"
+    ) {
+        return "Lenght";
+    }
+
+    if (
+        raw === "AREAMEASURE" ||
+        raw === "POSITIVEAREAMEASURE" ||
+        raw === "NONNEGATIVEAREAMEASURE"
+    ) {
+        return "Area";
+    }
+
+    if (
+        raw === "REAL" ||
+        raw === "NUMBER" ||
+        raw === "RATIOMEASURE" ||
+        raw === "POSITIVERATIOMEASURE" ||
+        raw === "NONNEGATIVERATIOMEASURE" ||
+        raw === "PLANEANGLEMEASURE" ||
+        raw === "SOLIDANGLEMEASURE"
+    ) {
+        return "Real";
+    }
+
+    // Common textual IFC types.
+    if (
+        raw === "TEXT" ||
+        raw === "LABEL" ||
+        raw === "IDENTIFIER" ||
+        raw === "DESCRIPTION" ||
+        raw === "URI" ||
+        raw === "DATE" ||
+        raw === "DATETIME" ||
+        raw === "TIME"
+    ) {
+        return "Text";
+    }
+
+    // Measure types that are not represented by a dedicated
+    // type in the current editor are kept as Real.
+    if (
+        raw.endsWith("MEASURE") ||
+        raw.endsWith("RATIO")
+    ) {
+        return "Real";
+    }
+
+    return "Text";
+}
+
+function getIdsSimpleValue(element) {
+    if (!element) return "";
+
+    // IDS uses <simpleValue> inside many constraint/value elements.
+    const simpleValue = getFirstDirectChild(element, "simpleValue");
+    if (simpleValue) {
+        return String(simpleValue.textContent || "").trim();
+    }
+
+    // Be tolerant of exporters that put the value directly in the element.
+    return String(element.textContent || "").trim();
+}
+
+function readIdsEntityClasses(applicability) {
+    if (!applicability) return [];
+
+    const entities = getDirectChildren(applicability, "entity");
+    const classes = [];
+
+    entities.forEach(entity => {
+        const nameElement = getFirstDirectChild(entity, "name");
+        let value = "";
+
+        if (nameElement) {
+            value = getIdsSimpleValue(nameElement);
+        }
+
+        // Tolerate exporters using <entity name="IfcWall">.
+        if (!value) {
+            value = getAttributeIgnoreCase(entity, ["name"]);
+        }
+
+        value = normalizeIfcClass(value);
+
+        if (value && !classes.includes(value)) {
+            classes.push(value);
+        }
+    });
+
+    return classes;
+}
+
+function readIdsProperty(propertyElement) {
+    if (!propertyElement) return null;
+
+    // IDS 1.0/1.1 structure:
+    // <property dataType="IFCREAL" cardinality="optional">
+    //   <propertySet><simpleValue>RusSet_AGR</simpleValue></propertySet>
+    //   <baseName><simpleValue>RUS_AreaSquare</simpleValue></baseName>
+    // </property>
+    const dataType = getAttributeIgnoreCase(
+        propertyElement,
+        ["dataType", "datatype", "type"]
+    );
+
+    const propertySetElement = getFirstDirectChild(
+        propertyElement,
+        "propertySet"
+    );
+
+    const baseNameElement = getFirstDirectChild(
+        propertyElement,
+        "baseName"
+    );
+
+    let propertySet = propertySetElement
+        ? getIdsSimpleValue(propertySetElement)
+        : "";
+
+    let baseName = baseNameElement
+        ? getIdsSimpleValue(baseNameElement)
+        : "";
+
+    // Tolerate non-standard/simple exporter variants.
+    if (!baseName) {
+        baseName = getAttributeIgnoreCase(
+            propertyElement,
+            ["name", "baseName"]
+        );
+    }
+
+    if (!propertySet) {
+        propertySet = getAttributeIgnoreCase(
+            propertyElement,
+            ["propertySet", "pset"]
+        );
+    }
+
+    if (!baseName || !propertySet) {
+        return null;
+    }
+
+    return {
+        psetName: propertySet.trim(),
+        name: baseName.trim(),
+        type: normalizeIfcType(dataType),
+        rawType: String(dataType || "").trim()
+    };
+}
+
+function readIdsSpecification(specification) {
+    const result = [];
+
+    const applicability = getFirstDirectChild(
+        specification,
+        "applicability"
+    );
+
+    const ifcClasses = readIdsEntityClasses(applicability);
+
+    const requirements = getFirstDirectChild(
+        specification,
+        "requirements"
+    );
+
+    if (!requirements) return result;
+
+    // In a valid IDS file, properties are direct children of requirements.
+    // We intentionally do NOT search for <propertySet> here because in IDS
+    // the propertySet is a child of <property>, not a container.
+    const properties = getDirectChildren(
+        requirements,
+        "property"
+    );
+
+    properties.forEach(propertyElement => {
+        const property = readIdsProperty(propertyElement);
+        if (!property) return;
+
+        // A specification can contain several entity constraints.
+        // Create a record for each applicable IFC class.
+        if (ifcClasses.length) {
+            ifcClasses.forEach(ifcClass => {
+                result.push({
+                    ifcClass,
+                    psetName: property.psetName,
+                    ifcProperty: property.name,
+                    type: property.type,
+                    rawType: property.rawType
+                });
+            });
+        } else {
+            // Keep the property even if the exporter omitted entity
+            // applicability. The UI can then show an empty IFC class.
+            result.push({
+                ifcClass: "",
+                psetName: property.psetName,
+                ifcProperty: property.name,
+                type: property.type,
+                rawType: property.rawType
+            });
+        }
+    });
+
+    return result;
+}
+
+function parseIdsXml(text) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "application/xml");
+
+    const parserError = xml.getElementsByTagName("parsererror");
+    if (parserError && parserError.length) {
+        throw new Error("Файл IDS/XML содержит некорректный XML.");
+    }
+
+    const root = xml.documentElement;
+    if (!root) {
+        throw new Error("Не найден корневой XML-элемент.");
+    }
+
+    // Namespace-independent IDS parsing. For example:
+    // <ids:ids> ... <ids:specifications> ... <ids:specification> ...
+    // The ids: prefix is irrelevant; xmlLocalName() returns the local name.
+    if (xmlLocalName(root) !== "ids") {
+        throw new Error("Это не IDS-файл: корневой элемент <ids:ids> не найден.");
+    }
+
+    const specificationsContainer = getFirstDirectChild(
+        root,
+        "specifications"
+    );
+
+    if (!specificationsContainer) {
+        throw new Error("В IDS не найден раздел <specifications>.");
+    }
+
+    const specifications = getDirectChildren(
+        specificationsContainer,
+        "specification"
+    );
+
+    if (!specifications.length) {
+        throw new Error("В IDS не найдены элементы <specification>.");
+    }
+
+    const records = [];
+
+    specifications.forEach(specification => {
+        const items = readIdsSpecification(specification);
+        records.push(...items);
+    });
+
+    if (!records.length) {
+        throw new Error(
+            "IDS прочитан, но в requirements не найдено ни одного свойства с propertySet и baseName."
+        );
+    }
+
+    return records;
+}
+
+function idsRecordsToPsets(records) {
+
+    /*
+        Key = IFC class + PropertySet.
+
+        This means two IDS specifications using
+        the same Pset for the same IFC class will be
+        combined into one editor Pset.
+    */
+
+    const map = new Map();
+
+    records.forEach(
+        record => {
+
+            const psetName =
+                String(record.psetName || "").trim();
+
+            const ifcClass =
+                normalizeIfcClass(
+                    record.ifcClass
+                );
+
+            const propertyName =
+                String(
+                    record.ifcProperty || ""
+                ).trim();
+
+            if (
+                !psetName ||
+                !propertyName
+            ) {
+                return;
+            }
+
+            const key =
+                ifcClass +
+                "||" +
+                psetName;
+
+            if (!map.has(key)) {
+
+                map.set(
+                    key,
+                    {
+                        name: psetName,
+                        mode: "I",
+                        ifcClass,
+                        expanded: true,
+                        parameters: []
+                    }
+                );
+            }
+
+            const target =
+                map.get(key);
+
+            const alreadyExists =
+                target.parameters.some(
+                    parameter =>
+                        parameter.ifcProperty
+                            .trim()
+                            .toLowerCase() ===
+                        propertyName
+                            .toLowerCase()
+                );
+
+            if (alreadyExists) {
+                return;
+            }
+
+            target.parameters.push({
+                ifcProperty: propertyName,
+                type:
+                    record.type || "Text",
+
+                // IDS describes IFC requirements, not Revit parameters.
+                // Therefore the Revit field must remain empty until the
+                // user explicitly maps it to an FOP parameter.
+                revitParameter: ""
+            });
+        }
+    );
+
+    return Array.from(
+        map.values()
+    );
+}
+
+function importIdsText(text) {
+
+    const records =
+        parseIdsXml(text);
+
+    if (!records.length) {
+        throw new Error(
+            "В IDS не найдены пары IFC class / PropertySet / Property."
+        );
+    }
+
+    const importedPsets =
+        idsRecordsToPsets(records);
+
+    if (!importedPsets.length) {
+        throw new Error(
+            "Не удалось сформировать предварительный маппинг из IDS."
+        );
+    }
+
+    /*
+        IDS is treated as a source for a preliminary mapping.
+        Existing Psets are not deleted.
+
+        If an existing Pset with the same:
+          IFC class + Pset name
+        exists, missing properties are added to it.
+
+        This is safer than replacing the whole current mapping.
+    */
+
+    let addedPsets = 0;
+    let addedParameters = 0;
+
+    importedPsets.forEach(
+        imported => {
+
+            let target =
+                psets.find(
+                    p =>
+                        p.name.trim().toLowerCase() ===
+                            imported.name.trim().toLowerCase() &&
+                        p.ifcClass.trim().toLowerCase() ===
+                            imported.ifcClass.trim().toLowerCase()
+                );
+
+            if (!target) {
+
+                target =
+                    createPset({
+                        name: imported.name,
+                        mode: imported.mode,
+                        ifcClass: imported.ifcClass,
+                        expanded: true,
+                        parameters: []
+                    });
+
+                addedPsets++;
+            }
+
+            imported.parameters.forEach(
+                importedParameter => {
+
+                    const exists =
+                        target.parameters.some(
+                            parameter =>
+                                parameter.ifcProperty
+                                    .trim()
+                                    .toLowerCase() ===
+                                importedParameter.ifcProperty
+                                    .trim()
+                                    .toLowerCase()
+                        );
+
+                    if (exists) return;
+
+                    target.parameters.push({
+                        id:
+                            generateId("param"),
+
+                        ifcProperty:
+                            importedParameter.ifcProperty,
+
+                        type:
+                            importedParameter.type,
+
+                        revitParameter:
+                            importedParameter.revitParameter
+                    });
+
+                    addedParameters++;
+                }
+            );
+        }
+    );
+
+    render();
+
+    notify(
+        `IDS импортирован: ${importedPsets.length} Pset, ` +
+        `${records.length} свойств`
+    );
+
+    return {
+        specifications: importedPsets.length,
+        records: records.length,
+        addedPsets,
+        addedParameters
+    };
+}
+
+/* =========================================================
+   IMPORT IDS BUTTON
+========================================================= */
+
+importIdsBtn.addEventListener(
+    "click",
+    () => {
+
+        importIdsFile.value = "";
+        importIdsFile.click();
+
+    }
+);
+
+importIdsFile.addEventListener(
+    "change",
+    event => {
+
+        const file =
+            event.target.files[0];
+
+        if (!file) return;
+
+        const reader =
+            new FileReader();
+
+        reader.onload =
+            function(event) {
+
+                try {
+
+                    const result =
+                        importIdsText(
+                            event.target.result
+                        );
+
+                    notify(
+                        `IDS: добавлено Pset — ` +
+                        `${result.addedPsets}, ` +
+                        `параметров — ` +
+                        `${result.addedParameters}`
+                    );
+
+                } catch (error) {
+
+                    console.error(error);
+
+                    alert(
+                        "Ошибка импорта IDS:\n\n" +
+                        error.message
+                    );
+                }
+            };
+
+        reader.readAsText(
+            file,
+            "UTF-8"
+        );
+    }
+);
 
 /* =========================================================
    SAVE
