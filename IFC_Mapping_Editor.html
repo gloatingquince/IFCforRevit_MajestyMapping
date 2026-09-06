@@ -543,6 +543,40 @@ select:focus {
     }
 }
 
+
+/* =========================================================
+   EDITOR + MAPPING MAP
+========================================================= */
+.workspace{
+    display:grid;
+    grid-template-columns:minmax(560px,1fr) minmax(430px,.82fr);
+    gap:14px;
+    align-items:stretch;
+    height:calc(100vh - 145px);
+    min-height:520px;
+}
+.editor-pane{min-width:0; overflow:auto;}
+.map-pane{
+    min-width:0; min-height:0; background:var(--card);
+    border:1px solid var(--line); border-radius:12px;
+    display:flex; flex-direction:column; overflow:hidden;
+}
+.map-toolbar{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.map-title{font-weight:700;margin-right:auto}
+.map-toolbar button{padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+.map-controls{padding:9px 10px;border-bottom:1px solid var(--line);background:#fafbfc;display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+.map-controls input,.map-controls select{height:34px;min-width:0;border:1px solid var(--line);border-radius:7px;padding:0 8px;background:#fff}
+.map-search{grid-column:1/-1}
+.map-tree{overflow:auto;flex:1;padding:7px 9px 12px}
+.tree-group{margin:1px 0}.tree-row{display:flex;align-items:center;gap:5px;min-height:30px;border-radius:6px;padding:3px 5px;cursor:pointer}.tree-row:hover{background:#f2f5f8}
+.tree-toggle{width:20px;height:20px;flex:0 0 20px;border:0;background:transparent;cursor:pointer;color:#68707a;padding:0}
+.tree-icon{width:19px;flex:0 0 19px;text-align:center;color:#69727d}.tree-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tree-meta{font-size:11px;color:#7b8490;white-space:nowrap}
+.tree-ifc>.tree-row{font-weight:700}.tree-pset>.tree-row{padding-left:28px;font-weight:600}.tree-param>.tree-row{padding-left:53px;font-weight:400}.tree-param .tree-row{cursor:pointer}
+.tree-status-ok{color:#22834a}.tree-status-warn{color:#b26a00}.tree-empty{padding:30px 15px;text-align:center;color:var(--muted)}
+.map-summary{border-top:1px solid var(--line);padding:8px 11px;color:var(--muted);font-size:12px}
+.map-highlight{outline:2px solid #3b82f6;outline-offset:1px;border-radius:6px}
+@media(max-width:1150px){.workspace{grid-template-columns:1fr;height:auto}.editor-pane{overflow:visible}.map-pane{height:600px}}
+
 </style>
 </head>
 
@@ -606,10 +640,41 @@ select:focus {
 
     <main class="content">
 
-        <div
-            id="psetContainer"
-            class="pset-container"
-        ></div>
+        <div class="workspace">
+            <section class="editor-pane">
+                <div
+                    id="psetContainer"
+                    class="pset-container"
+                ></div>
+            </section>
+
+            <aside class="map-pane" id="mappingMap">
+                <div class="map-toolbar">
+                    <div class="map-title">Карта маппинга</div>
+                    <button type="button" id="mapExpandAll">Развернуть всё</button>
+                    <button type="button" id="mapCollapseAll">Свернуть всё</button>
+                </div>
+                <div class="map-controls">
+                    <input id="mapPsetSearch" type="search" placeholder="Поиск Pset">
+                    <input id="mapClassSearch" type="search" placeholder="Поиск класса IFC">
+                    <input id="mapParamSearch" type="search" placeholder="Поиск имени параметра">
+                    <select id="mapViewMode" title="Отображение карты">
+                        <option value="ifc">Класс IFC → Pset → параметры</option>
+                        <option value="pset">Pset → Класс IFC → параметры</option>
+                    </select>
+                    <select id="mapTypeFilter" title="Тип параметра">
+                        <option value="">Все параметры</option>
+                        <option value="mapped">Сопоставленные</option>
+                        <option value="unmapped">Не сопоставленные</option>
+                    </select>
+                    <select id="mapDataTypeFilter" title="Тип данных">
+                        <option value="">Все типы данных</option>
+                    </select>
+                </div>
+                <div class="map-tree" id="mapTree"></div>
+                <div class="map-summary" id="mapSummary"></div>
+            </aside>
+        </div>
 
     </main>
 
@@ -999,6 +1064,3113 @@ function copyPset(id) {
 ========================================================= */
 
 function addParameter(
+    psetId
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    pset.parameters.push({
+
+        id:
+            generateId("param"),
+
+        ifcProperty: "",
+
+        type: "Text",
+
+        revitParameter: ""
+
+    });
+
+
+    render();
+}
+
+
+/* =========================================================
+   DELETE PARAMETER
+========================================================= */
+
+function deleteParameter(
+    psetId,
+    parameterId
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    const index =
+        pset.parameters.findIndex(
+            p =>
+                p.id === parameterId
+        );
+
+    if (index === -1)
+        return;
+
+
+    pset.parameters.splice(
+        index,
+        1
+    );
+
+    render();
+}
+
+
+/* =========================================================
+   COPY PARAMETER
+========================================================= */
+
+function copyParameter(
+    psetId,
+    parameterId
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    const index =
+        pset.parameters.findIndex(
+            p =>
+                p.id === parameterId
+        );
+
+    if (index === -1)
+        return;
+
+
+    const source =
+        pset.parameters[index];
+
+
+    pset.parameters.splice(
+
+        index + 1,
+
+        0,
+
+        {
+
+            id:
+                generateId("param"),
+
+            ifcProperty:
+                source.ifcProperty,
+
+            type:
+                source.type,
+
+            revitParameter:
+                source.revitParameter
+
+        }
+
+    );
+
+
+    render();
+
+    notify(
+        "Параметр скопирован"
+    );
+}
+
+
+/* =========================================================
+   UPDATE PSET
+========================================================= */
+
+function updatePset(
+    id,
+    field,
+    value
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === id
+        );
+
+    if (!pset)
+        return;
+
+    pset[field] =
+        value;
+
+    updateCounters();
+
+    // Карта должна обновляться при любом изменении Pset,
+    // но не при простом сворачивании/разворачивании.
+    mapUpdate();
+}
+
+
+/* =========================================================
+   UPDATE PARAMETER
+========================================================= */
+
+function updateParameter(
+    psetId,
+    parameterId,
+    field,
+    value
+) {
+
+    const pset =
+        psets.find(
+            p => p.id === psetId
+        );
+
+    if (!pset)
+        return;
+
+
+    const parameter =
+        pset.parameters.find(
+            p =>
+                p.id === parameterId
+        );
+
+    if (!parameter)
+        return;
+
+
+    parameter[field] =
+        value;
+
+    // Обновляем карту сразу после изменения параметра.
+    mapUpdate();
+}
+
+
+/* =========================================================
+   TOGGLE PSET
+========================================================= */
+
+function togglePset(id) {
+
+    const pset =
+        psets.find(
+            p => p.id === id
+        );
+
+    if (!pset)
+        return;
+
+
+    pset.expanded =
+        !pset.expanded;
+
+
+    // Только изменение состояния редактора.
+    // Карта при сворачивании/разворачивании не перестраивается.
+    render(true);
+}
+
+
+/* =========================================================
+   FILTER
+========================================================= */
+
+function getFilteredPsets() {
+
+    const psetQuery =
+        searchPset.value
+            .trim()
+            .toLowerCase();
+
+    const ifcQuery =
+        searchIfc.value
+            .trim()
+            .toLowerCase();
+
+
+    return psets.filter(
+        pset => {
+
+            const matchesPset =
+                !psetQuery ||
+                pset.name
+                    .toLowerCase()
+                    .includes(
+                        psetQuery
+                    );
+
+
+            const matchesIfc =
+                !ifcQuery ||
+                pset.ifcClass
+                    .toLowerCase()
+                    .includes(
+                        ifcQuery
+                    );
+
+
+            return (
+                matchesPset &&
+                matchesIfc
+            );
+
+        }
+    );
+}
+
+
+/* =========================================================
+   PARAMETER DRAG START
+========================================================= */
+
+function parameterDragStart(
+    event,
+    psetId,
+    parameterId
+) {
+
+    draggedParameter = {
+
+        psetId:
+            psetId,
+
+        parameterId:
+            parameterId
+
+    };
+
+
+    event.currentTarget
+        .classList
+        .add("dragging");
+
+
+    event.dataTransfer.effectAllowed =
+        "move";
+
+
+    event.dataTransfer.setData(
+        "text/plain",
+        parameterId
+    );
+}
+
+
+/* =========================================================
+   PARAMETER DRAG END
+========================================================= */
+
+function parameterDragEnd(event) {
+
+    event.currentTarget
+        .classList
+        .remove("dragging");
+
+
+    document
+        .querySelectorAll(
+            ".parameter.drag-over"
+        )
+        .forEach(
+            element =>
+                element.classList.remove(
+                    "drag-over"
+                )
+        );
+
+
+    draggedParameter =
+        null;
+}
+
+
+/* =========================================================
+   PARAMETER DRAG OVER
+========================================================= */
+
+function parameterDragOver(event) {
+
+    event.preventDefault();
+
+    event.dataTransfer.dropEffect =
+        "move";
+
+    const row =
+        event.currentTarget;
+
+    if (
+        !draggedParameter
+    )
+        return;
+
+
+    row.classList.add(
+        "drag-over"
+    );
+}
+
+
+/* =========================================================
+   PARAMETER DRAG LEAVE
+========================================================= */
+
+function parameterDragLeave(event) {
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+}
+
+
+/* =========================================================
+   PARAMETER DROP
+========================================================= */
+
+function parameterDrop(
+    event,
+    targetPsetId,
+    targetParameterId
+) {
+
+    event.preventDefault();
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+
+
+    if (!draggedParameter)
+        return;
+
+
+    if (
+        draggedParameter.psetId !==
+        targetPsetId
+    )
+        return;
+
+
+    const pset =
+        psets.find(
+            p =>
+                p.id ===
+                targetPsetId
+        );
+
+
+    if (!pset)
+        return;
+
+
+    const fromIndex =
+        pset.parameters.findIndex(
+            p =>
+                p.id ===
+                draggedParameter.parameterId
+        );
+
+
+    const toIndex =
+        pset.parameters.findIndex(
+            p =>
+                p.id ===
+                targetParameterId
+        );
+
+
+    if (
+        fromIndex === -1 ||
+        toIndex === -1 ||
+        fromIndex === toIndex
+    )
+        return;
+
+
+    const moved =
+        pset.parameters.splice(
+            fromIndex,
+            1
+        )[0];
+
+
+    pset.parameters.splice(
+        toIndex,
+        0,
+        moved
+    );
+
+
+    draggedParameter =
+        null;
+
+
+    render();
+}
+
+
+/* =========================================================
+   PSET DRAG
+========================================================= */
+
+function psetDragStart(
+    event,
+    psetId
+) {
+
+    draggedPsetId =
+        psetId;
+
+
+    event.currentTarget
+        .classList
+        .add("dragging");
+
+
+    event.dataTransfer.effectAllowed =
+        "move";
+
+    event.dataTransfer.setData(
+        "text/plain",
+        psetId
+    );
+}
+
+
+function psetDragEnd(event) {
+
+    event.currentTarget
+        .classList
+        .remove(
+            "dragging"
+        );
+
+
+    document
+        .querySelectorAll(
+            ".pset.drag-over"
+        )
+        .forEach(
+            element =>
+                element.classList.remove(
+                    "drag-over"
+                )
+        );
+
+
+    draggedPsetId =
+        null;
+}
+
+
+function psetDragOver(event) {
+
+    event.preventDefault();
+
+    if (!draggedPsetId)
+        return;
+
+
+    event.dataTransfer.dropEffect =
+        "move";
+
+
+    event.currentTarget
+        .classList
+        .add(
+            "drag-over"
+        );
+}
+
+
+function psetDragLeave(event) {
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+}
+
+
+function psetDrop(
+    event,
+    targetPsetId
+) {
+
+    event.preventDefault();
+
+    event.currentTarget
+        .classList
+        .remove(
+            "drag-over"
+        );
+
+
+    if (
+        !draggedPsetId ||
+        draggedPsetId ===
+        targetPsetId
+    )
+        return;
+
+
+    const fromIndex =
+        psets.findIndex(
+            p =>
+                p.id ===
+                draggedPsetId
+        );
+
+
+    const toIndex =
+        psets.findIndex(
+            p =>
+                p.id ===
+                targetPsetId
+        );
+
+
+    if (
+        fromIndex === -1 ||
+        toIndex === -1
+    )
+        return;
+
+
+    const moved =
+        psets.splice(
+            fromIndex,
+            1
+        )[0];
+
+
+    psets.splice(
+        toIndex,
+        0,
+        moved
+    );
+
+
+    draggedPsetId =
+        null;
+
+
+    render();
+}
+
+
+/* =========================================================
+   RENDER PARAMETER
+========================================================= */
+
+function renderParameter(
+    pset,
+    parameter
+) {
+
+    const row =
+        document.createElement(
+            "div"
+        );
+
+
+    row.className =
+        "parameter";
+
+
+    row.draggable =
+        true;
+
+
+    row.innerHTML = `
+
+        <div
+            class="parameter-drag-handle"
+            title="Перетащить"
+        >
+            ⠿
+        </div>
+
+        <input
+            type="text"
+            placeholder="IFC Property"
+            value="${escapeHtml(
+                parameter.ifcProperty
+            )}"
+            data-field="ifcProperty"
+        >
+
+        <select
+            data-field="type"
+        >
+
+            <option value="Text">
+                Text
+            </option>
+
+            <option value="Real">
+                Real
+            </option>
+
+            <option value="Integer">
+                Integer
+            </option>
+
+            <option value="Boolean">
+                Boolean
+            </option>
+
+            <option value="Lenght">
+                Lenght
+            </option>
+
+            <option value="Area">
+                Area
+            </option>
+
+        </select>
+
+        <input
+            type="text"
+            placeholder="Revit Parameter"
+            value="${escapeHtml(
+                parameter.revitParameter
+            )}"
+            data-field="revitParameter"
+        >
+
+        <button
+            class="icon-btn"
+            title="Копировать"
+            data-action="copy"
+        >
+            ${ICONS.copy}
+        </button>
+
+        <button
+            class="icon-btn danger"
+            title="Удалить"
+            data-action="delete"
+        >
+            ${ICONS.trash}
+        </button>
+
+    `;
+
+
+    const select =
+        row.querySelector(
+            "select"
+        );
+
+
+    select.value =
+        parameter.type;
+
+
+    /* INPUTS */
+
+    row.querySelectorAll(
+        "input, select"
+    ).forEach(
+        element => {
+
+            element.addEventListener(
+                "input",
+                () => {
+
+                    updateParameter(
+                        pset.id,
+                        parameter.id,
+                        element.dataset.field,
+                        element.value
+                    );
+
+                    updateCounters();
+
+                }
+            );
+
+
+            element.addEventListener(
+                "change",
+                () => {
+
+                    updateParameter(
+                        pset.id,
+                        parameter.id,
+                        element.dataset.field,
+                        element.value
+                    );
+
+                    updateCounters();
+
+                }
+            );
+
+        }
+    );
+
+
+    /* COPY */
+
+    row.querySelector(
+        '[data-action="copy"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            copyParameter(
+                pset.id,
+                parameter.id
+            );
+
+        }
+    );
+
+
+    /* DELETE */
+
+    row.querySelector(
+        '[data-action="delete"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            deleteParameter(
+                pset.id,
+                parameter.id
+            );
+
+        }
+    );
+
+
+    /* DRAG */
+
+    row.addEventListener(
+        "dragstart",
+        event =>
+            parameterDragStart(
+                event,
+                pset.id,
+                parameter.id
+            )
+    );
+
+
+    row.addEventListener(
+        "dragend",
+        parameterDragEnd
+    );
+
+
+    row.addEventListener(
+        "dragover",
+        parameterDragOver
+    );
+
+
+    row.addEventListener(
+        "dragleave",
+        parameterDragLeave
+    );
+
+
+    row.addEventListener(
+        "drop",
+        event =>
+            parameterDrop(
+                event,
+                pset.id,
+                parameter.id
+            )
+    );
+
+
+    return row;
+}
+
+
+/* =========================================================
+   RENDER PSET
+========================================================= */
+
+function renderPset(pset) {
+
+    const card =
+        document.createElement(
+            "div"
+        );
+
+
+    card.className =
+        "pset";
+
+
+    card.dataset.psetId =
+        pset.id;
+
+
+    /* =====================================================
+       HEADER
+    ====================================================== */
+
+    const header =
+        document.createElement(
+            "div"
+        );
+
+
+    header.className =
+        "pset-header";
+
+
+    header.innerHTML = `
+
+        <div
+            class="pset-drag-handle"
+            draggable="true"
+            title="Перетащить Pset"
+        >
+            ⠿
+        </div>
+
+        <button
+            class="icon-btn"
+            data-action="expand"
+            title="Развернуть / свернуть"
+        >
+            ${
+                pset.expanded
+                    ? ICONS.chevronDown
+                    : ICONS.chevronRight
+            }
+        </button>
+
+        <input
+            class="pset-name"
+            type="text"
+            placeholder="PropertySet"
+            value="${escapeHtml(
+                pset.name
+            )}"
+        >
+
+        <select
+            class="mode"
+        >
+
+            <option value="I">
+                I
+            </option>
+
+            <option value="T">
+                T
+            </option>
+
+        </select>
+
+        <input
+            class="ifc-class"
+            type="text"
+            placeholder="IfcClass"
+            value="${escapeHtml(
+                pset.ifcClass
+            )}"
+        >
+
+        <button
+            class="icon-btn"
+            title="Копировать Pset"
+            data-action="copy-pset"
+        >
+            ${ICONS.copy}
+        </button>
+
+        <button
+            class="icon-btn danger"
+            title="Удалить Pset"
+            data-action="delete-pset"
+        >
+            ${ICONS.trash}
+        </button>
+
+    `;
+
+
+    header.querySelector(
+        ".mode"
+    ).value =
+        pset.mode;
+
+
+    /* EXPAND */
+
+    header.querySelector(
+        '[data-action="expand"]'
+    ).addEventListener(
+        "click",
+        () =>
+            togglePset(
+                pset.id
+            )
+    );
+
+
+    /* NAME */
+
+    header.querySelector(
+        ".pset-name"
+    ).addEventListener(
+        "input",
+        event =>
+            updatePset(
+                pset.id,
+                "name",
+                event.target.value
+            )
+    );
+
+
+    /* MODE */
+
+    header.querySelector(
+        ".mode"
+    ).addEventListener(
+        "change",
+        event =>
+            updatePset(
+                pset.id,
+                "mode",
+                event.target.value
+            )
+    );
+
+
+    /* IFC CLASS */
+
+    header.querySelector(
+        ".ifc-class"
+    ).addEventListener(
+        "input",
+        event =>
+            updatePset(
+                pset.id,
+                "ifcClass",
+                event.target.value
+            )
+    );
+
+
+    /* COPY */
+
+    header.querySelector(
+        '[data-action="copy-pset"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            copyPset(
+                pset.id
+            );
+
+        }
+    );
+
+
+    /* DELETE */
+
+    header.querySelector(
+        '[data-action="delete-pset"]'
+    ).addEventListener(
+        "click",
+        event => {
+
+            event.stopPropagation();
+
+            deletePset(
+                pset.id
+            );
+
+        }
+    );
+
+
+    /* =====================================================
+       PSET DRAG
+    ====================================================== */
+
+    const dragHandle =
+        header.querySelector(
+            ".pset-drag-handle"
+        );
+
+
+    dragHandle.addEventListener(
+        "dragstart",
+        event =>
+            psetDragStart(
+                event,
+                pset.id
+            )
+    );
+
+
+    dragHandle.addEventListener(
+        "dragend",
+        psetDragEnd
+    );
+
+
+    card.addEventListener(
+        "dragover",
+        psetDragOver
+    );
+
+
+    card.addEventListener(
+        "dragleave",
+        psetDragLeave
+    );
+
+
+    card.addEventListener(
+        "drop",
+        event =>
+            psetDrop(
+                event,
+                pset.id
+            )
+    );
+
+
+    card.appendChild(
+        header
+    );
+
+
+    /* =====================================================
+       BODY
+    ====================================================== */
+
+    if (pset.expanded) {
+
+        const body =
+            document.createElement(
+                "div"
+            );
+
+
+        body.className =
+            "pset-body";
+
+
+        /* PARAMETER HEADER */
+
+        const parameterHeader =
+            document.createElement(
+                "div"
+            );
+
+
+        parameterHeader.className =
+            "parameter-header";
+
+
+        parameterHeader.innerHTML = `
+
+            <div></div>
+
+            <div>
+                IFC Property
+            </div>
+
+            <div>
+                Тип
+            </div>
+
+            <div>
+                Revit Parameter
+            </div>
+
+            <div class="header-action">
+                ⧉
+            </div>
+
+            <div class="header-action">
+                🗑
+            </div>
+
+        `;
+
+
+        if (
+            pset.parameters.length > 0
+        ) {
+
+            body.appendChild(
+                parameterHeader
+            );
+
+
+            const parameters =
+                document.createElement(
+                    "div"
+                );
+
+
+            parameters.className =
+                "parameters";
+
+
+            pset.parameters.forEach(
+                parameter => {
+
+                    parameters.appendChild(
+                        renderParameter(
+                            pset,
+                            parameter
+                        )
+                    );
+
+                }
+            );
+
+
+            body.appendChild(
+                parameters
+            );
+
+        } else {
+
+            const noParams =
+                document.createElement(
+                    "div"
+                );
+
+
+            noParams.className =
+                "no-params";
+
+
+            noParams.textContent =
+                "Параметры не добавлены.";
+
+
+            body.appendChild(
+                noParams
+            );
+
+        }
+
+
+        /* ADD */
+
+        const actions =
+            document.createElement(
+                "div"
+            );
+
+
+        actions.className =
+            "pset-actions";
+
+
+        const addButton =
+            document.createElement(
+                "button"
+            );
+
+
+        addButton.textContent =
+            "+ Параметр";
+
+
+        addButton.addEventListener(
+            "click",
+            () =>
+                addParameter(
+                    pset.id
+                )
+        );
+
+
+        actions.appendChild(
+            addButton
+        );
+
+
+        body.appendChild(
+            actions
+        );
+
+
+        card.appendChild(
+            body
+        );
+
+    }
+
+
+    card.dataset.psetId = pset.id;
+    return card;
+}
+
+
+/* =========================================================
+   RENDER
+========================================================= */
+
+function render(skipMapUpdate = false) {
+
+    const filtered =
+        getFilteredPsets();
+
+
+    psetContainer.innerHTML =
+        "";
+
+
+    if (
+        filtered.length === 0
+    ) {
+
+        const empty =
+            document.createElement(
+                "div"
+            );
+
+
+        empty.className =
+            "empty-state";
+
+
+        if (
+            psets.length === 0
+        ) {
+
+            empty.innerHTML =
+                `
+                Нет Pset.<br><br>
+                Нажмите «Создать Pset»
+                или импортируйте существующий маппинг.
+                `;
+
+        } else {
+
+            empty.textContent =
+                "По заданному фильтру Pset не найдены.";
+
+        }
+
+
+        psetContainer.appendChild(
+            empty
+        );
+
+
+    } else {
+
+        filtered.forEach(
+            pset => {
+
+                psetContainer.appendChild(
+                    renderPset(
+                        pset
+                    )
+                );
+
+            }
+        );
+
+    }
+
+
+    updateCounters();
+
+    // При первоначальной загрузке карта строится здесь же,
+    // поэтому порядок инициализации обработчиков больше не важен.
+    if (!skipMapUpdate && typeof mapUpdate === "function") {
+        mapUpdate();
+    }
+}
+
+
+/* =========================================================
+   COUNTERS
+========================================================= */
+
+function updateCounters() {
+
+    const visible =
+        getFilteredPsets().length;
+
+
+    const parameterCount =
+        psets.reduce(
+            (
+                total,
+                pset
+            ) =>
+                total +
+                pset.parameters.length,
+            0
+        );
+
+
+    counter.textContent =
+        `Pset: ${visible}/${psets.length} · Параметров: ${parameterCount}`;
+}
+
+
+/* =========================================================
+   SEARCH
+========================================================= */
+
+searchPset.addEventListener(
+    "input",
+    render
+);
+
+searchIfc.addEventListener(
+    "input",
+    render
+);
+
+
+/* =========================================================
+   ADD PSET
+========================================================= */
+
+addPsetBtn.addEventListener(
+    "click",
+    () => {
+
+        createPset();
+
+        notify(
+            "Создан новый Pset"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   IMPORT BUTTON
+========================================================= */
+
+importBtn.addEventListener(
+    "click",
+    () => {
+
+        importFile.value =
+            "";
+
+        importFile.click();
+
+    }
+);
+
+
+/* =========================================================
+   IMPORT FILE
+========================================================= */
+
+importFile.addEventListener(
+    "change",
+    event => {
+
+        const file =
+            event.target.files[0];
+
+
+        if (!file)
+            return;
+
+
+        const reader =
+            new FileReader();
+
+
+        reader.onload =
+            function(event) {
+
+                try {
+
+                    importMappingText(
+                        event.target.result
+                    );
+
+
+                    notify(
+                        "Маппинг успешно импортирован"
+                    );
+
+
+                } catch(error) {
+
+                    console.error(
+                        error
+                    );
+
+
+                    alert(
+                        "Ошибка импорта:\n\n" +
+                        error.message
+                    );
+
+                }
+
+            };
+
+
+        reader.readAsText(
+            file,
+            "UTF-8"
+        );
+
+    }
+);
+
+
+/* =========================================================
+   IMPORT PARSER
+========================================================= */
+
+function importMappingText(
+    text
+) {
+
+    psets = [];
+
+
+    let currentPset =
+        null;
+
+
+    const lines =
+        text.split(
+            /\r?\n/
+        );
+
+
+    lines.forEach(
+        line => {
+
+            if (!line)
+                return;
+
+
+            const parts =
+                line.split(
+                    "\t"
+                );
+
+
+            if (
+                parts[0] ===
+                "PropertySet:"
+            ) {
+
+                currentPset =
+                    createPset({
+
+                        name:
+                            parts[1] || "",
+
+                        mode:
+                            parts[2] || "I",
+
+                        ifcClass:
+                            parts[3] || "",
+
+                        expanded:
+                            true
+
+                    });
+
+
+            } else {
+
+                if (!currentPset)
+                    return;
+
+
+                currentPset.parameters.push({
+
+                    id:
+                        generateId(
+                            "param"
+                        ),
+
+                    ifcProperty:
+                        parts[1] || "",
+
+                    type:
+                        parts[2] || "Text",
+
+                    revitParameter:
+                        parts[3] || ""
+
+                });
+
+            }
+
+        }
+    );
+
+
+    render();
+}
+
+
+
+/* =========================================================
+   IDS IMPORT
+========================================================= */
+
+/*
+    IDS -> preliminary mapping
+
+    What is extracted from IDS:
+      - IFC class: applicability/entity/@name
+      - PropertySet: requirements/propertySet/@name
+      - IFC property: requirements/propertySet/property/@name
+      - IFC datatype: property/@datatype
+
+    The result is converted into the editor's native structure:
+      {
+          name: "Pset_...",
+          ifcClass: "IfcWall",
+          parameters: [
+              {
+                  ifcProperty: "Reference",
+                  type: "Text",
+                  revitParameter: "Reference"
+              }
+          ]
+      }
+
+    IDS uses XML namespaces, so selectors are intentionally
+    namespace-independent (local-name()).
+*/
+
+function xmlLocalName(element) {
+    return element && element.localName
+        ? element.localName
+        : String(element && element.nodeName || "")
+            .split(":")
+            .pop();
+}
+
+function getDirectChildren(element, localName) {
+    if (!element) return [];
+
+    return Array.from(element.children || [])
+        .filter(child => xmlLocalName(child) === localName);
+}
+
+function getDescendants(element, localName) {
+    if (!element) return [];
+
+    return Array.from(element.getElementsByTagName("*"))
+        .filter(node => xmlLocalName(node) === localName);
+}
+
+function getFirstDirectChild(element, localName) {
+    return getDirectChildren(element, localName)[0] || null;
+}
+
+function getAttributeIgnoreCase(element, names) {
+    if (!element) return "";
+
+    for (const name of names) {
+        const direct = element.getAttribute(name);
+        if (direct !== null && String(direct).trim() !== "") {
+            return String(direct).trim();
+        }
+    }
+
+    const attrs = Array.from(element.attributes || []);
+
+    for (const wanted of names) {
+        const found = attrs.find(
+            attr =>
+                String(attr.name).toLowerCase() ===
+                String(wanted).toLowerCase()
+        );
+
+        if (
+            found &&
+            String(found.value).trim() !== ""
+        ) {
+            return String(found.value).trim();
+        }
+    }
+
+    return "";
+}
+
+function normalizeIfcClass(value) {
+    if (!value) return "";
+
+    let result = String(value).trim();
+
+    // IDS normally stores e.g. "IfcWall".
+    // Keep the original value, but remove XML-ish whitespace.
+    result = result.replace(/\s+/g, " ");
+
+    return result;
+}
+
+function normalizeIfcType(value) {
+    if (!value) return "Text";
+
+    const raw = String(value)
+        .trim()
+        .toUpperCase()
+        .replace(/^IFC/, "");
+
+    /*
+        IFC / IDS datatype -> editor datatype.
+
+        Text:
+          IfcText, IfcLabel, IfcIdentifier, IfcBoolean-like
+          values are handled below explicitly.
+        Real:
+          IfcReal, IfcPositiveRatioMeasure, IfcRatioMeasure, etc.
+        Integer:
+          IfcInteger, IfcCountMeasure
+        Length:
+          IfcLengthMeasure
+        Area:
+          IfcAreaMeasure
+        Boolean:
+          IfcBoolean
+    */
+
+    if (
+        raw === "BOOLEAN" ||
+        raw === "LOGICAL"
+    ) {
+        return "Boolean";
+    }
+
+    if (
+        raw === "INTEGER" ||
+        raw === "COUNTMEASURE"
+    ) {
+        return "Integer";
+    }
+
+    if (
+        raw === "LENGTHMEASURE" ||
+        raw === "POSITIVELENGTHMEASURE" ||
+        raw === "NONNEGATIVELENGTHMEASURE"
+    ) {
+        return "Lenght";
+    }
+
+    if (
+        raw === "AREAMEASURE" ||
+        raw === "POSITIVEAREAMEASURE" ||
+        raw === "NONNEGATIVEAREAMEASURE"
+    ) {
+        return "Area";
+    }
+
+    if (
+        raw === "REAL" ||
+        raw === "NUMBER" ||
+        raw === "RATIOMEASURE" ||
+        raw === "POSITIVERATIOMEASURE" ||
+        raw === "NONNEGATIVERATIOMEASURE" ||
+        raw === "PLANEANGLEMEASURE" ||
+        raw === "SOLIDANGLEMEASURE"
+    ) {
+        return "Real";
+    }
+
+    // Common textual IFC types.
+    if (
+        raw === "TEXT" ||
+        raw === "LABEL" ||
+        raw === "IDENTIFIER" ||
+        raw === "DESCRIPTION" ||
+        raw === "URI" ||
+        raw === "DATE" ||
+        raw === "DATETIME" ||
+        raw === "TIME"
+    ) {
+        return "Text";
+    }
+
+    // Measure types that are not represented by a dedicated
+    // type in the current editor are kept as Real.
+    if (
+        raw.endsWith("MEASURE") ||
+        raw.endsWith("RATIO")
+    ) {
+        return "Real";
+    }
+
+    return "Text";
+}
+
+function getIdsSimpleValue(element) {
+    if (!element) return "";
+
+    // IDS uses <simpleValue> inside many constraint/value elements.
+    const simpleValue = getFirstDirectChild(element, "simpleValue");
+    if (simpleValue) {
+        return String(simpleValue.textContent || "").trim();
+    }
+
+    // Be tolerant of exporters that put the value directly in the element.
+    return String(element.textContent || "").trim();
+}
+
+function readIdsEntityClasses(applicability) {
+    if (!applicability) return [];
+
+    const entities = getDirectChildren(applicability, "entity");
+    const classes = [];
+
+    entities.forEach(entity => {
+        const nameElement = getFirstDirectChild(entity, "name");
+        let value = "";
+
+        if (nameElement) {
+            value = getIdsSimpleValue(nameElement);
+        }
+
+        // Tolerate exporters using <entity name="IfcWall">.
+        if (!value) {
+            value = getAttributeIgnoreCase(entity, ["name"]);
+        }
+
+        value = normalizeIfcClass(value);
+
+        if (value && !classes.includes(value)) {
+            classes.push(value);
+        }
+    });
+
+    return classes;
+}
+
+function readIdsProperty(propertyElement) {
+    if (!propertyElement) return null;
+
+    // IDS 1.0/1.1 structure:
+    // <property dataType="IFCREAL" cardinality="optional">
+    //   <propertySet><simpleValue>RusSet_AGR</simpleValue></propertySet>
+    //   <baseName><simpleValue>RUS_AreaSquare</simpleValue></baseName>
+    // </property>
+    const dataType = getAttributeIgnoreCase(
+        propertyElement,
+        ["dataType", "datatype", "type"]
+    );
+
+    const propertySetElement = getFirstDirectChild(
+        propertyElement,
+        "propertySet"
+    );
+
+    const baseNameElement = getFirstDirectChild(
+        propertyElement,
+        "baseName"
+    );
+
+    let propertySet = propertySetElement
+        ? getIdsSimpleValue(propertySetElement)
+        : "";
+
+    let baseName = baseNameElement
+        ? getIdsSimpleValue(baseNameElement)
+        : "";
+
+    // Tolerate non-standard/simple exporter variants.
+    if (!baseName) {
+        baseName = getAttributeIgnoreCase(
+            propertyElement,
+            ["name", "baseName"]
+        );
+    }
+
+    if (!propertySet) {
+        propertySet = getAttributeIgnoreCase(
+            propertyElement,
+            ["propertySet", "pset"]
+        );
+    }
+
+    if (!baseName || !propertySet) {
+        return null;
+    }
+
+    return {
+        psetName: propertySet.trim(),
+        name: baseName.trim(),
+        type: normalizeIfcType(dataType),
+        rawType: String(dataType || "").trim()
+    };
+}
+
+function readIdsSpecification(specification) {
+    const result = [];
+
+    const applicability = getFirstDirectChild(
+        specification,
+        "applicability"
+    );
+
+    const ifcClasses = readIdsEntityClasses(applicability);
+
+    const requirements = getFirstDirectChild(
+        specification,
+        "requirements"
+    );
+
+    if (!requirements) return result;
+
+    // In a valid IDS file, properties are direct children of requirements.
+    // We intentionally do NOT search for <propertySet> here because in IDS
+    // the propertySet is a child of <property>, not a container.
+    const properties = getDirectChildren(
+        requirements,
+        "property"
+    );
+
+    properties.forEach(propertyElement => {
+        const property = readIdsProperty(propertyElement);
+        if (!property) return;
+
+        // A specification can contain several entity constraints.
+        // Create a record for each applicable IFC class.
+        if (ifcClasses.length) {
+            ifcClasses.forEach(ifcClass => {
+                result.push({
+                    ifcClass,
+                    psetName: property.psetName,
+                    ifcProperty: property.name,
+                    type: property.type,
+                    rawType: property.rawType
+                });
+            });
+        } else {
+            // Keep the property even if the exporter omitted entity
+            // applicability. The UI can then show an empty IFC class.
+            result.push({
+                ifcClass: "",
+                psetName: property.psetName,
+                ifcProperty: property.name,
+                type: property.type,
+                rawType: property.rawType
+            });
+        }
+    });
+
+    return result;
+}
+
+function parseIdsXml(text) {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(text, "application/xml");
+
+    const parserError = xml.getElementsByTagName("parsererror");
+    if (parserError && parserError.length) {
+        throw new Error("Файл IDS/XML содержит некорректный XML.");
+    }
+
+    const root = xml.documentElement;
+    if (!root) {
+        throw new Error("Не найден корневой XML-элемент.");
+    }
+
+    // Namespace-independent IDS parsing. For example:
+    // <ids:ids> ... <ids:specifications> ... <ids:specification> ...
+    // The ids: prefix is irrelevant; xmlLocalName() returns the local name.
+    if (xmlLocalName(root) !== "ids") {
+        throw new Error("Это не IDS-файл: корневой элемент <ids:ids> не найден.");
+    }
+
+    const specificationsContainer = getFirstDirectChild(
+        root,
+        "specifications"
+    );
+
+    if (!specificationsContainer) {
+        throw new Error("В IDS не найден раздел <specifications>.");
+    }
+
+    const specifications = getDirectChildren(
+        specificationsContainer,
+        "specification"
+    );
+
+    if (!specifications.length) {
+        throw new Error("В IDS не найдены элементы <specification>.");
+    }
+
+    const records = [];
+
+    specifications.forEach(specification => {
+        const items = readIdsSpecification(specification);
+        records.push(...items);
+    });
+
+    if (!records.length) {
+        throw new Error(
+            "IDS прочитан, но в requirements не найдено ни одного свойства с propertySet и baseName."
+        );
+    }
+
+    return records;
+}
+
+function idsRecordsToPsets(records) {
+
+    /*
+        Key = IFC class + PropertySet.
+
+        This means two IDS specifications using
+        the same Pset for the same IFC class will be
+        combined into one editor Pset.
+    */
+
+    const map = new Map();
+
+    records.forEach(
+        record => {
+
+            const psetName =
+                String(record.psetName || "").trim();
+
+            const ifcClass =
+                normalizeIfcClass(
+                    record.ifcClass
+                );
+
+            const propertyName =
+                String(
+                    record.ifcProperty || ""
+                ).trim();
+
+            if (
+                !psetName ||
+                !propertyName
+            ) {
+                return;
+            }
+
+            const key =
+                ifcClass +
+                "||" +
+                psetName;
+
+            if (!map.has(key)) {
+
+                map.set(
+                    key,
+                    {
+                        name: psetName,
+                        mode: "I",
+                        ifcClass,
+                        expanded: true,
+                        parameters: []
+                    }
+                );
+            }
+
+            const target =
+                map.get(key);
+
+            const alreadyExists =
+                target.parameters.some(
+                    parameter =>
+                        parameter.ifcProperty
+                            .trim()
+                            .toLowerCase() ===
+                        propertyName
+                            .toLowerCase()
+                );
+
+            if (alreadyExists) {
+                return;
+            }
+
+            target.parameters.push({
+                ifcProperty: propertyName,
+                type:
+                    record.type || "Text",
+
+                // IDS describes IFC requirements, not Revit parameters.
+                // Therefore the Revit field must remain empty until the
+                // user explicitly maps it to an FOP parameter.
+                revitParameter: ""
+            });
+        }
+    );
+
+    return Array.from(
+        map.values()
+    );
+}
+
+function importIdsText(text) {
+
+    const records =
+        parseIdsXml(text);
+
+    if (!records.length) {
+        throw new Error(
+            "В IDS не найдены пары IFC class / PropertySet / Property."
+        );
+    }
+
+    const importedPsets =
+        idsRecordsToPsets(records);
+
+    if (!importedPsets.length) {
+        throw new Error(
+            "Не удалось сформировать предварительный маппинг из IDS."
+        );
+    }
+
+    /*
+        IDS is treated as a source for a preliminary mapping.
+        Existing Psets are not deleted.
+
+        If an existing Pset with the same:
+          IFC class + Pset name
+        exists, missing properties are added to it.
+
+        This is safer than replacing the whole current mapping.
+    */
+
+    let addedPsets = 0;
+    let addedParameters = 0;
+
+    importedPsets.forEach(
+        imported => {
+
+            let target =
+                psets.find(
+                    p =>
+                        p.name.trim().toLowerCase() ===
+                            imported.name.trim().toLowerCase() &&
+                        p.ifcClass.trim().toLowerCase() ===
+                            imported.ifcClass.trim().toLowerCase()
+                );
+
+            if (!target) {
+
+                target =
+                    createPset({
+                        name: imported.name,
+                        mode: imported.mode,
+                        ifcClass: imported.ifcClass,
+                        expanded: true,
+                        parameters: []
+                    });
+
+                addedPsets++;
+            }
+
+            imported.parameters.forEach(
+                importedParameter => {
+
+                    const exists =
+                        target.parameters.some(
+                            parameter =>
+                                parameter.ifcProperty
+                                    .trim()
+                                    .toLowerCase() ===
+                                importedParameter.ifcProperty
+                                    .trim()
+                                    .toLowerCase()
+                        );
+
+                    if (exists) return;
+
+                    target.parameters.push({
+                        id:
+                            generateId("param"),
+
+                        ifcProperty:
+                            importedParameter.ifcProperty,
+
+                        type:
+                            importedParameter.type,
+
+                        revitParameter:
+                            importedParameter.revitParameter
+                    });
+
+                    addedParameters++;
+                }
+            );
+        }
+    );
+
+    render();
+
+    notify(
+        `IDS импортирован: ${importedPsets.length} Pset, ` +
+        `${records.length} свойств`
+    );
+
+    return {
+        specifications: importedPsets.length,
+        records: records.length,
+        addedPsets,
+        addedParameters
+    };
+}
+
+/* =========================================================
+   IMPORT IDS BUTTON
+========================================================= */
+
+importIdsBtn.addEventListener(
+    "click",
+    () => {
+
+        importIdsFile.value = "";
+        importIdsFile.click();
+
+    }
+);
+
+importIdsFile.addEventListener(
+    "change",
+    event => {
+
+        const file =
+            event.target.files[0];
+
+        if (!file) return;
+
+        const reader =
+            new FileReader();
+
+        reader.onload =
+            function(event) {
+
+                try {
+
+                    const result =
+                        importIdsText(
+                            event.target.result
+                        );
+
+                    notify(
+                        `IDS: добавлено Pset — ` +
+                        `${result.addedPsets}, ` +
+                        `параметров — ` +
+                        `${result.addedParameters}`
+                    );
+
+                } catch (error) {
+
+                    console.error(error);
+
+                    alert(
+                        "Ошибка импорта IDS:\n\n" +
+                        error.message
+                    );
+                }
+            };
+
+        reader.readAsText(
+            file,
+            "UTF-8"
+        );
+    }
+);
+
+/* =========================================================
+   SAVE
+========================================================= */
+
+saveBtn.addEventListener(
+    "click",
+    saveMapping
+);
+
+
+function saveMapping() {
+
+    const duplicates =
+        new Set();
+
+
+    for (
+        const pset of psets
+    ) {
+
+        const name =
+            pset.name.trim();
+
+
+        const ifcClass =
+            pset.ifcClass.trim();
+
+
+        if (!name) {
+
+            alert(
+                "Ошибка:\n\n" +
+                "Имя PropertySet пустое."
+            );
+
+            return;
+        }
+
+
+        const key =
+            name +
+            "||" +
+            ifcClass;
+
+
+        if (
+            duplicates.has(
+                key
+            )
+        ) {
+
+            alert(
+                "Ошибка:\n\n" +
+                "Дубликат PropertySet:\n" +
+                name +
+                " | " +
+                ifcClass
+            );
+
+            return;
+        }
+
+
+        duplicates.add(
+            key
+        );
+
+    }
+
+
+    const lines = [];
+
+
+    psets.forEach(
+        pset => {
+
+            lines.push(
+                [
+                    "PropertySet:",
+                    pset.name,
+                    pset.mode,
+                    pset.ifcClass,
+                    "",
+                    "",
+                    "",
+                    ""
+                ].join("\t")
+            );
+
+
+            pset.parameters.forEach(
+                parameter => {
+
+                    lines.push(
+                        [
+                            "",
+                            parameter.ifcProperty,
+                            parameter.type,
+                            parameter.revitParameter,
+                            "",
+                            "",
+                            "",
+                            ""
+                        ].join("\t")
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+    const text =
+        lines.join(
+            "\n"
+        );
+
+
+    const blob =
+        new Blob(
+            [text],
+            {
+                type:
+                    "text/plain;charset=utf-8"
+            }
+        );
+
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+
+    const link =
+        document.createElement(
+            "a"
+        );
+
+
+    link.href =
+        url;
+
+
+    link.download =
+        "mapping.txt";
+
+
+    document.body.appendChild(
+        link
+    );
+
+
+    link.click();
+
+
+    link.remove();
+
+
+    URL.revokeObjectURL(
+        url
+    );
+
+
+    notify(
+        "Маппинг сохранён"
+    );
+}
+
+
+
+/* =========================================================
+   MAPPING MAP
+========================================================= */
+
+const mapTree = document.getElementById("mapTree");
+const mapPsetSearch = document.getElementById("mapPsetSearch");
+const mapClassSearch = document.getElementById("mapClassSearch");
+const mapParamSearch = document.getElementById("mapParamSearch");
+const mapViewMode = document.getElementById("mapViewMode");
+const mapTypeFilter = document.getElementById("mapTypeFilter");
+const mapDataTypeFilter = document.getElementById("mapDataTypeFilter");
+const mapSummary = document.getElementById("mapSummary");
+const mapExpandAll = document.getElementById("mapExpandAll");
+const mapCollapseAll = document.getElementById("mapCollapseAll");
+
+const mapState = {
+    view: "ifc",
+    psetQuery: "",
+    classQuery: "",
+    paramQuery: "",
+    type: "",
+    dataType: "",
+    collapsed: new Set()
+};
+
+function mapNorm(value) {
+    return String(value ?? "").trim().toLowerCase();
+}
+
+function mapEsc(value) {
+    return escapeHtml(value);
+}
+
+function mapMatches(parameter, pset) {
+
+    const psetQuery = mapNorm(mapState.psetQuery);
+    const classQuery = mapNorm(mapState.classQuery);
+    const paramQuery = mapNorm(mapState.paramQuery);
+
+    const mapped =
+        !!String(parameter.revitParameter || "").trim();
+
+    /*
+       "Тип данных" всегда берём непосредственно
+       из parameter.type.
+    */
+    if (
+        mapState.type === "mapped" &&
+        !mapped
+    ) {
+        return false;
+    }
+
+    if (
+        mapState.type === "unmapped" &&
+        mapped
+    ) {
+        return false;
+    }
+
+    if (
+        mapState.dataType &&
+        mapNorm(parameter.type) !==
+        mapNorm(mapState.dataType)
+    ) {
+        return false;
+    }
+
+    if (
+        psetQuery &&
+        !mapNorm(pset.name).includes(psetQuery)
+    ) {
+        return false;
+    }
+
+    if (
+        classQuery &&
+        !mapNorm(pset.ifcClass).includes(classQuery)
+    ) {
+        return false;
+    }
+
+    /*
+       Имя параметра в карте = IFC Property.
+       Revit Parameter дополнительно проверяется,
+       чтобы поиск оставался удобным при работе
+       с уже сопоставленными параметрами.
+    */
+    if (
+        paramQuery &&
+        !mapNorm(parameter.ifcProperty).includes(paramQuery) &&
+        !mapNorm(parameter.revitParameter).includes(paramQuery)
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
+function mapGroups() {
+
+    const grouped =
+        new Map();
+
+    psets.forEach(
+        pset => {
+
+            const params =
+                pset.parameters.filter(
+                    parameter =>
+                        mapMatches(
+                            parameter,
+                            pset
+                        )
+                );
+
+            if (!params.length) {
+                return;
+            }
+
+            const top =
+                mapState.view === "ifc"
+                    ? (
+                        pset.ifcClass ||
+                        "Без класса IFC"
+                    )
+                    : (
+                        pset.name ||
+                        "Без имени Pset"
+                    );
+
+            const second =
+                mapState.view === "ifc"
+                    ? (
+                        pset.name ||
+                        "Без имени Pset"
+                    )
+                    : (
+                        pset.ifcClass ||
+                        "Без класса IFC"
+                    );
+
+            if (!grouped.has(top)) {
+
+                grouped.set(
+                    top,
+                    {
+                        label: top,
+                        items: []
+                    }
+                );
+
+            }
+
+            grouped
+                .get(top)
+                .items
+                .push({
+                    pset,
+                    label: second,
+                    parameters: params
+                });
+
+        }
+    );
+
+    const groups =
+        [...grouped.values()]
+            .sort(
+                (a, b) =>
+                    a.label.localeCompare(
+                        b.label,
+                        "ru"
+                    )
+            );
+
+    groups.forEach(
+        group => {
+
+            group.items.sort(
+                (a, b) =>
+                    a.label.localeCompare(
+                        b.label,
+                        "ru"
+                    )
+            );
+
+            group.items.forEach(
+                item => {
+
+                    item.parameters.sort(
+                        (a, b) =>
+                            String(
+                                a.ifcProperty || ""
+                            ).localeCompare(
+                                String(
+                                    b.ifcProperty || ""
+                                ),
+                                "ru"
+                            )
+                    );
+
+                }
+            );
+
+        }
+    );
+
+    return groups;
+}
+
+function mapRender() {
+
+    if (!mapTree) {
+        return;
+    }
+
+    const groups =
+        mapGroups();
+
+    let psetCount = 0;
+    let parameterCount = 0;
+
+    groups.forEach(
+        group => {
+
+            group.items.forEach(
+                item => {
+
+                    psetCount++;
+                    parameterCount +=
+                        item.parameters.length;
+
+                }
+            );
+
+        }
+    );
+
+    if (!groups.length) {
+
+        mapTree.innerHTML =
+            '<div class="tree-empty">По заданным фильтрам ничего не найдено</div>';
+
+        mapSummary.textContent =
+            "0 Pset · 0 параметров";
+
+        return;
+    }
+
+    mapTree.innerHTML =
+        groups
+            .map(
+                group => {
+
+                    const groupKey =
+                        `g:${mapState.view}:${group.label}`;
+
+                    const groupCollapsed =
+                        mapState.collapsed.has(
+                            groupKey
+                        );
+
+                    const items =
+                        group.items
+                            .map(
+                                item => {
+
+                                    const psetKey =
+                                        `p:${mapState.view}:${item.pset.id}`;
+
+                                    const psetCollapsed =
+                                        mapState.collapsed.has(
+                                            psetKey
+                                        );
+
+                                    const parameters =
+                                        item.parameters
+                                            .map(
+                                                parameter => {
+
+                                                    const mapped =
+                                                        !!String(
+                                                            parameter.revitParameter || ""
+                                                        ).trim();
+
+                                                    return `
+                                                        <div class="tree-group tree-param">
+                                                            <div
+                                                                class="tree-row"
+                                                                data-map-pset="${mapEsc(item.pset.id)}"
+                                                                data-map-param="${mapEsc(parameter.id)}"
+                                                            >
+                                                                <button
+                                                                    class="tree-toggle"
+                                                                    tabindex="-1"
+                                                                ></button>
+
+                                                                <span class="tree-icon">•</span>
+
+                                                                <span
+                                                                    class="tree-label"
+                                                                    title="${mapEsc(parameter.revitParameter || "Не сопоставлен")}"
+                                                                >
+                                                                    ${mapEsc(parameter.ifcProperty || "Без имени")}
+                                                                </span>
+
+                                                                <span class="tree-meta">
+                                                                    ${mapEsc(parameter.type || "Text")}
+                                                                    ·
+                                                                    <span class="${mapped ? "tree-status-ok" : "tree-status-warn"}">
+                                                                        ${mapped ? "✓" : "⚠"}
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    `;
+
+                                                }
+                                            )
+                                            .join("");
+
+                                    return `
+                                        <div class="tree-group tree-pset">
+
+                                            <div
+                                                class="tree-row"
+                                                data-map-pset="${mapEsc(item.pset.id)}"
+                                            >
+
+                                                <button
+                                                    class="tree-toggle"
+                                                    data-map-toggle="${mapEsc(psetKey)}"
+                                                >
+                                                    ${psetCollapsed ? "▶" : "▼"}
+                                                </button>
+
+                                                <span class="tree-icon">▰</span>
+
+                                                <span
+                                                    class="tree-label"
+                                                    title="${mapEsc(item.label)}"
+                                                >
+                                                    ${mapEsc(item.label)}
+                                                </span>
+
+                                                <span class="tree-meta">
+                                                    ${item.parameters.length}
+                                                </span>
+
+                                            </div>
+
+                                            ${psetCollapsed ? "" : parameters}
+
+                                        </div>
+                                    `;
+
+                                }
+                            )
+                            .join("");
+
+                    return `
+                        <div class="tree-group tree-ifc">
+
+                            <div class="tree-row">
+
+                                <button
+                                    class="tree-toggle"
+                                    data-map-toggle="${mapEsc(groupKey)}"
+                                >
+                                    ${groupCollapsed ? "▶" : "▼"}
+                                </button>
+
+                                <span class="tree-icon">
+                                    ${mapState.view === "ifc" ? "◆" : "▰"}
+                                </span>
+
+                                <span class="tree-label">
+                                    ${mapEsc(group.label)}
+                                </span>
+
+                                <span class="tree-meta">
+                                    ${group.items.length} Pset
+                                </span>
+
+                            </div>
+
+                            ${groupCollapsed ? "" : items}
+
+                        </div>
+                    `;
+
+                }
+            )
+            .join("");
+
+    mapSummary.textContent =
+        `${groups.length} ${
+            mapState.view === "ifc"
+                ? "классов IFC"
+                : "Pset"
+        } · ${psetCount} связок · ${parameterCount} параметров`;
+}
+
+function mapRefreshFilters() {
+
+    /*
+       Варианты строятся ТОЛЬКО из реально присутствующих
+       значений parameter.type в текущем маппинге.
+
+       Никаких значений из HTML-шаблона или IDS здесь нет.
+    */
+    const values =
+        [
+            ...new Set(
+                psets
+                    .flatMap(
+                        pset =>
+                            pset.parameters
+                                .map(
+                                    parameter =>
+                                        String(
+                                            parameter.type ?? ""
+                                        ).trim()
+                                )
+                                .filter(Boolean)
+                    )
+            )
+        ]
+        .sort(
+            (a, b) =>
+                a.localeCompare(
+                    b,
+                    "ru"
+                )
+        );
+
+    const current =
+        mapDataTypeFilter.value;
+
+    mapDataTypeFilter.innerHTML =
+        '<option value="">Все типы данных</option>' +
+        values
+            .map(
+                value =>
+                    `<option value="${mapEsc(value)}">${mapEsc(value)}</option>`
+            )
+            .join("");
+
+    if (
+        values.includes(current)
+    ) {
+        mapDataTypeFilter.value =
+            current;
+    } else {
+        mapDataTypeFilter.value =
+            "";
+
+        mapState.dataType =
+            "";
+    }
+}
+
+function mapUpdate() {
+
+    mapRefreshFilters();
+    mapRender();
+}
+
+function mapExpand() {
+
+    mapState.collapsed.clear();
+    mapRender();
+}
+
+function mapCollapse() {
+
+    mapGroups().forEach(
+        group => {
+
+            mapState.collapsed.add(
+                `g:${mapState.view}:${group.label}`
+            );
+
+            group.items.forEach(
+                item => {
+
+                    mapState.collapsed.add(
+                        `p:${mapState.view}:${item.pset.id}`
+                    );
+
+                }
+            );
+
+        }
+    );
+
+    mapRender();
+}
+
+/*
+   Три независимых поля поиска:
+   - Pset
+   - класс IFC
+   - имя параметра
+*/
+mapPsetSearch.addEventListener(
+    "input",
+    event => {
+
+        mapState.psetQuery =
+            event.target.value;
+
+        mapRender();
+
+    }
+);
+
+mapClassSearch.addEventListener(
+    "input",
+    event => {
+
+        mapState.classQuery =
+            event.target.value;
+
+        mapRender();
+
+    }
+);
+
+mapParamSearch.addEventListener(
+    "input",
+    event => {
+
+        mapState.paramQuery =
+            event.target.value;
+
+        mapRender();
+
+    }
+);
+
+mapViewMode.addEventListener(
+    "change",
+    event => {
+
+        mapState.view =
+            event.target.value;
+
+        mapState.collapsed.clear();
+
+        mapRender();
+
+    }
+);
+
+mapTypeFilter.addEventListener(
+    "change",
+    event => {
+
+        mapState.type =
+            event.target.value;
+
+        mapRender();
+
+    }
+);
+
+mapDataTypeFilter.addEventListener(
+    "change",
+    event => {
+
+        mapState.dataType =
+            event.target.value;
+
+        mapRender();
+
+    }
+);
+
+mapExpandAll.addEventListener(
+    "click",
+    mapExpand
+);
+
+mapCollapseAll.addEventListener(
+    "click",
+    mapCollapse
+);
+
+mapTree.addEventListener(
+    "click",
+    event => {
+
+        const toggle =
+            event.target.closest(
+                "[data-map-toggle]"
+            );
+
+        if (toggle) {
+
+            const key =
+                toggle.getAttribute(
+                    "data-map-toggle"
+                );
+
+            if (
+                mapState.collapsed.has(key)
+            ) {
+                mapState.collapsed.delete(key);
+            } else {
+                mapState.collapsed.add(key);
+            }
+
+            mapRender();
+
+            return;
+        }
+
+        const row =
+            event.target.closest(
+                "[data-map-pset]"
+            );
+
+        if (!row) {
+            return;
+        }
+
+        const pset =
+            psets.find(
+                p =>
+                    p.id ===
+                    row.dataset.mapPset
+            );
+
+        if (!pset) {
+            return;
+        }
+
+        const card =
+            document.querySelector(
+                `[data-pset-id="${CSS.escape(pset.id)}"]`
+            );
+
+        if (card) {
+
+            card.scrollIntoView(
+                {
+                    behavior: "smooth",
+                    block: "center"
+                }
+            );
+
+            card.classList.add(
+                "map-highlight"
+            );
+
+            setTimeout(
+                () =>
+                    card.classList.remove(
+                        "map-highlight"
+                    ),
+                1200
+            );
+
+        }
+
+    }
+);
+
+/* =========================================================
+   INITIAL
+========================================================= */
+
+render();
+
+</script>
+
+</body>
+</html>Parameter(
     psetId
 ) {
 
